@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Abako Competition Suite</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="./dist/output.css" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --card: #1a1a1a;
+      --border: #2a2a2a;
+      --accent: #cc0000;
+      --success: #22c55e;
+      --error: #ff4444;
+      --text: #ffffff;
+      --muted: #a0a0a0;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      overflow: hidden;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      width: 220px;
+      min-width: 220px;
+      background-color: var(--card);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    .logo-area {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo-mark {
+      width: 40px;
+      height: 40px;
+      background-color: var(--accent);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 20px;
+      color: #fff;
+      margin-bottom: 10px;
+    }
+
+    .app-name {
+      font-weight: 600;
+      font-size: 15px;
+      color: var(--text);
+    }
+
+    .app-tagline {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 1px;
+    }
+
+    .nav-list {
+      flex: 1;
+      padding: 10px 0;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 20px;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 500;
+      transition: color 0.12s, background-color 0.12s;
+      user-select: none;
+    }
+
+    .nav-item:hover { background-color: rgba(204,0,0,0.07); color: var(--text); }
+    .nav-item.active { background-color: rgba(204,0,0,0.14); color: var(--accent); }
+
+    .nav-icon { width: 15px; height: 15px; flex-shrink: 0; }
+
+    .sidebar-footer {
+      padding: 14px 20px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    /* ── Main panel ── */
+    #main { flex: 1; overflow-y: auto; height: 100vh; }
+
+    .panel { max-width: 760px; }
+
+    /* ── Bank bar ── */
+    .bank-bar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background-color: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    #bank-status-text { flex: 1; font-size: 13px; color: var(--muted); }
+    #bank-status-text .hi { color: var(--text); font-weight: 500; }
+
+    /* ── Sections ── */
+    .section {
+      padding: 22px 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 14px;
+    }
+
+    /* ── Form ── */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .form-field { display: flex; flex-direction: column; gap: 5px; }
+
+    .form-label { font-size: 12px; font-weight: 500; color: var(--text); }
+
+    .form-input {
+      background-color: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 13px;
+      font-family: inherit;
+      width: 100%;
+      transition: border-color 0.12s, box-shadow 0.12s;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(204,0,0,0.18);
+    }
+
+    input[type="date"].form-input { color-scheme: dark; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      font-family: inherit;
+      transition: opacity 0.12s, background-color 0.12s, border-color 0.12s;
+      white-space: nowrap;
+    }
+
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-primary { background-color: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background-color: #aa0000; }
+
+    .btn-ghost {
+      background-color: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+
+    .btn-full { width: 100%; justify-content: center; padding: 9px 16px; font-size: 14px; }
+
+    /* ── Chapter list ── */
+    .chapter-list { display: flex; flex-direction: column; gap: 7px; }
+
+    .chapter-row { display: flex; align-items: center; gap: 12px; }
+    .chapter-name { flex: 1; font-size: 13px; color: var(--text); }
+
+    .count-input {
+      background-color: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 8px;
+      font-size: 13px;
+      font-family: inherit;
+      width: 72px;
+      text-align: right;
+      transition: border-color 0.12s, box-shadow 0.12s;
+    }
+    .count-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(204,0,0,0.18);
+    }
+
+    .total-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .total-row.ok  { color: var(--success); }
+    .total-row.bad { color: var(--error); }
+
+    /* ── Shuffle toggle ── */
+    .toggle-row { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+    .toggle-row label { font-size: 13px; color: var(--text); cursor: pointer; user-select: none; }
+    .toggle-row input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+
+    /* ── Banners ── */
+    .banner {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 14px;
+      border-radius: 7px;
+      font-size: 13px;
+      margin-top: 14px;
+    }
+    .banner-success {
+      background-color: rgba(34,197,94,0.08);
+      border: 1px solid rgba(34,197,94,0.25);
+      color: var(--success);
+    }
+    .banner-error {
+      background-color: rgba(255,68,68,0.08);
+      border: 1px solid rgba(255,68,68,0.25);
+      color: var(--error);
+    }
+    .banner-text { flex: 1; word-break: break-all; line-height: 1.4; }
+
+    /* ── Grade mode file display ── */
+    .file-pill {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 5px;
+    }
+    .file-pill.loaded { color: var(--success); }
+
+    /* ── Spinner ── */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      width: 13px;
+      height: 13px;
+      border: 2px solid rgba(255,255,255,0.25);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.65s linear infinite;
+      flex-shrink: 0;
+    }
+
+    /* ── Grade panel header ── */
+    .panel-header {
+      padding: 22px 24px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .panel-header h2 { font-size: 17px; font-weight: 600; color: var(--text); }
+    .panel-header p  { font-size: 13px; color: var(--muted); margin-top: 3px; }
+  </style>
+</head>
+<body>
+
+  <!-- ── Sidebar ── -->
+  <nav id="sidebar">
+    <div class="logo-area">
+      <div class="logo-mark">A</div>
+      <div class="app-name">Abako</div>
+      <div class="app-tagline">Competition Suite</div>
+    </div>
+
+    <div class="nav-list">
+      <div class="nav-item active" data-panel="generate">
+        <!-- document icon -->
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        Generate
+      </div>
+      <div class="nav-item" data-panel="grade">
+        <!-- chart bar icon -->
+        <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+        </svg>
+        Grade
+      </div>
+    </div>
+
+    <!-- Run Demo button (dev only — injected by JS if window.api.isDev) -->
+    <div id="demo-area" style="padding: 8px 12px 4px; display:none; border-top: 1px solid var(--border);">
+      <button class="btn btn-ghost" id="demo-btn" style="width:100%; justify-content:center; font-size:12px; padding:6px 10px;">
+        Run Demo
+      </button>
+    </div>
+
+    <div class="sidebar-footer">
+      <span id="backend-dot" title="Backend status"
+        style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--error);margin-right:6px;vertical-align:middle;transition:background 0.3s;"></span>
+      v<span id="app-version">—</span>
+      <span style="color:var(--muted);font-size:11px;"> · Made by Raaif Yousuf</span>
+    </div>
+  </nav>
+
+  <!-- ── Main ── -->
+  <main id="main">
+
+    <!-- ════ GENERATE PANEL ════ -->
+    <div id="panel-generate" class="panel">
+
+      <!-- Bank bar -->
+      <div class="bank-bar">
+        <span id="bank-status-text">No bank loaded</span>
+        <button class="btn btn-ghost" id="change-bank-btn">Change Bank</button>
+      </div>
+
+      <!-- Exam Details -->
+      <div class="section">
+        <div class="section-title">Exam Details</div>
+        <div class="form-grid">
+          <div class="form-field">
+            <label class="form-label" for="school-name">School Name</label>
+            <input class="form-input" type="text" id="school-name" placeholder="e.g. Iqbal High School">
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="campus-name">Campus Name</label>
+            <input class="form-input" type="text" id="campus-name" placeholder="e.g. Main Campus">
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="exam-grade">Grade</label>
+            <input class="form-input" type="text" id="exam-grade" placeholder="e.g. Grade 7">
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="exam-date">Exam Date</label>
+            <input class="form-input" type="date" id="exam-date">
+          </div>
+        </div>
+      </div>
+
+      <!-- Chapter Configuration (hidden until bank loaded) -->
+      <div class="section" id="chapter-section" style="display:none">
+        <div class="section-title">Chapter Configuration</div>
+        <div class="chapter-list" id="chapter-list"></div>
+        <div class="total-row bad" id="total-counter">Total: 0 / 60</div>
+        <div class="toggle-row">
+          <input type="checkbox" id="shuffle-toggle" checked>
+          <label for="shuffle-toggle">Shuffle question order</label>
+        </div>
+      </div>
+
+      <!-- Generate button + result -->
+      <div class="section">
+        <button class="btn btn-primary btn-full" id="generate-btn" disabled>Generate Paper</button>
+        <div id="generate-result"></div>
+      </div>
+    </div>
+
+    <!-- ════ GRADE PANEL ════ -->
+    <div id="panel-grade" class="panel" style="display:none">
+
+      <div class="panel-header">
+        <h2>Grade Exams</h2>
+        <p>Import a completed data entry sheet to generate student and school reports.</p>
+      </div>
+
+      <!-- Step 1: Entry Sheet -->
+      <div class="section">
+        <div class="section-title">Step 1 — Data Entry Sheet</div>
+        <div class="form-field">
+          <span class="form-label">Select the completed Data Entry Sheet (.xlsx)</span>
+          <div style="display:flex; align-items:center; gap:10px; margin-top:6px;">
+            <button class="btn btn-ghost" id="select-entry-btn">Select File</button>
+            <span class="file-pill" id="entry-file-label">No file selected</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: Exam Info -->
+      <div class="section">
+        <div class="section-title">Step 2 — Exam Information</div>
+        <div id="metadata-warning" style="display:none; color:var(--muted); font-size:12px; margin-bottom:10px;"></div>
+        <div class="form-grid">
+          <div class="form-field">
+            <label class="form-label" for="g-school-name">School Name</label>
+            <input class="form-input" type="text" id="g-school-name" placeholder="e.g. Iqbal High School">
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="g-campus-name">Campus Name</label>
+            <input class="form-input" type="text" id="g-campus-name" placeholder="e.g. Main Campus">
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="g-grade">Grade</label>
+            <input class="form-input" type="text" id="g-grade" placeholder="e.g. Grade 7">
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3: Output folder + run -->
+      <div class="section">
+        <div class="section-title">Step 3 — Output Location</div>
+        <div class="form-field" style="margin-bottom:18px;">
+          <span class="form-label">Output Folder</span>
+          <div style="display:flex; align-items:center; gap:10px; margin-top:6px;">
+            <button class="btn btn-ghost" id="select-output-btn">Select Folder</button>
+            <span class="file-pill" id="output-folder-label">No folder selected</span>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-full" id="grade-btn" disabled>Generate Reports</button>
+        <div id="grade-result"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+    // ── State ──────────────────────────────────────────────────────────────
+    let bankLoaded  = false;
+    let chapters    = [];
+    let entryPath   = null;
+    let outputDir   = null;
+    let activePanel = 'generate';
+
+    // ── Version ────────────────────────────────────────────────────────────
+    const verEl = document.getElementById('app-version');
+    if (verEl && window.api) {
+      window.api.appVersion().then(v => { verEl.textContent = v || '—'; }).catch(() => {});
+    }
+
+    // ── Navigation ─────────────────────────────────────────────────────────
+    document.querySelectorAll('.nav-item').forEach(item => {
+      item.addEventListener('click', () => {
+        console.log('[nav] clicked:', item.dataset.panel);
+        if (item.dataset.panel === 'grade') console.log('grade clicked');
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        item.classList.add('active');
+        activePanel = item.dataset.panel;
+        document.getElementById('panel-generate').style.display = activePanel === 'generate' ? 'block' : 'none';
+        document.getElementById('panel-grade').style.display    = activePanel === 'grade'    ? 'block' : 'none';
+      });
+    });
+
+    // ── Backend status dot ─────────────────────────────────────────────────
+    async function checkBackendStatus() {
+      const dot = document.getElementById('backend-dot');
+      if (!dot) return;
+      try {
+        const res = await window.api.call('ping', {});
+        if (res && res.status === 'ok') {
+          dot.style.background = 'var(--success)';
+          dot.title = 'Backend connected';
+        } else {
+          dot.style.background = 'var(--error)';
+          dot.title = 'Backend error';
+        }
+      } catch (e) {
+        dot.style.background = 'var(--error)';
+        dot.title = 'Backend disconnected';
+        console.warn('[backend-dot] ping failed:', e.message);
+      }
+    }
+
+    // ── Bank helpers ───────────────────────────────────────────────────────
+    function setBankStatus(filename) {
+      const el = document.getElementById('bank-status-text');
+      if (filename) {
+        bankLoaded = true;
+        el.innerHTML = `Question Bank: <span class="hi">${filename}</span>`;
+      } else {
+        bankLoaded = false;
+        el.textContent = 'No bank loaded';
+      }
+    }
+
+    async function fetchChapters() {
+      const res = await window.api.call('get-chapters', {});
+      chapters = (res.chapters || []);
+      renderChapterList();
+      document.getElementById('chapter-section').style.display = chapters.length ? '' : 'none';
+      checkGenerateReady();
+    }
+
+    document.getElementById('change-bank-btn').addEventListener('click', async () => {
+      try {
+        const filePath = await window.api.openFile([{ name: 'Excel', extensions: ['xlsx'] }]);
+        console.log('[change-bank] file picker returned:', filePath);
+        if (filePath === null || filePath === undefined) {
+          console.log('[change-bank] user cancelled — no action taken');
+          return;
+        }
+        console.log('[change-bank] calling save-bank with path:', filePath);
+        const res = await window.api.call('save-bank', { source_path: filePath });
+        console.log('[change-bank] save-bank response:', res);
+        if (res.status === 'ok') {
+          setBankStatus(filePath.replace(/.*[\\/]/, ''));
+          await fetchChapters();
+          await checkBackendStatus();
+        } else {
+          showBanner('generate-result', 'error', res.message || 'Failed to load bank');
+        }
+      } catch (e) {
+        console.error('[change-bank] error:', e);
+        showBanner('generate-result', 'error', 'Change Bank failed: ' + e.message);
+      }
+    });
+
+    // ── Chapter list ───────────────────────────────────────────────────────
+    function defaultCount() {
+      return chapters.length ? Math.floor(60 / chapters.length) : 0;
+    }
+
+    function renderChapterList() {
+      const list = document.getElementById('chapter-list');
+      list.innerHTML = '';
+      const def = defaultCount();
+      chapters.forEach(ch => {
+        const row = document.createElement('div');
+        row.className = 'chapter-row';
+
+        const lbl = document.createElement('span');
+        lbl.className = 'chapter-name';
+        lbl.textContent = ch;
+
+        const inp = document.createElement('input');
+        inp.type = 'number';
+        inp.className = 'count-input';
+        inp.min = 0;
+        inp.value = def;
+        inp.dataset.chapter = ch;
+        inp.addEventListener('input', () => { updateTotal(); checkGenerateReady(); });
+
+        row.appendChild(lbl);
+        row.appendChild(inp);
+        list.appendChild(row);
+      });
+      updateTotal();
+    }
+
+    function getChapterAllocations() {
+      const allocs = {};
+      document.querySelectorAll('.count-input').forEach(inp => {
+        allocs[inp.dataset.chapter] = parseInt(inp.value, 10) || 0;
+      });
+      return allocs;
+    }
+
+    function getTotal() {
+      return Object.values(getChapterAllocations()).reduce((s, v) => s + v, 0);
+    }
+
+    function updateTotal() {
+      const total = getTotal();
+      const el = document.getElementById('total-counter');
+      el.textContent = `Total: ${total} / 60`;
+      el.className = 'total-row ' + (total === 60 ? 'ok' : 'bad');
+    }
+
+    // ── Generate validation ────────────────────────────────────────────────
+    function isFormFilled() {
+      return (
+        document.getElementById('school-name').value.trim() &&
+        document.getElementById('campus-name').value.trim() &&
+        document.getElementById('exam-grade').value.trim() &&
+        document.getElementById('exam-date').value.trim()
+      );
+    }
+
+    function checkGenerateReady() {
+      const ok = bankLoaded && chapters.length > 0 && getTotal() === 60 && isFormFilled();
+      document.getElementById('generate-btn').disabled = !ok;
+    }
+
+    ['school-name', 'campus-name', 'exam-grade', 'exam-date'].forEach(id => {
+      document.getElementById(id).addEventListener('input', checkGenerateReady);
+    });
+
+    // ── Generate action ────────────────────────────────────────────────────
+    document.getElementById('generate-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('generate-btn');
+      setLoading(btn, 'Generating...');
+
+      const payload = {
+        school_name:         document.getElementById('school-name').value.trim(),
+        campus_name:         document.getElementById('campus-name').value.trim(),
+        grade:               document.getElementById('exam-grade').value.trim(),
+        exam_date:           document.getElementById('exam-date').value,
+        chapter_allocations: getChapterAllocations(),
+        shuffle:             document.getElementById('shuffle-toggle').checked,
+      };
+
+      try {
+        const res = await window.api.call('generate', payload);
+        if (res.output_dir) {
+          showBanner('generate-result', 'success', `Output saved to: ${res.output_dir}`, res.output_dir);
+        } else {
+          const msg = res.message || (Array.isArray(res.errors) ? res.errors.join(', ') : String(res.errors || 'Generation failed'));
+          showBanner('generate-result', 'error', msg);
+        }
+      } catch (e) {
+        showBanner('generate-result', 'error', e.message);
+      }
+
+      clearLoading(btn, 'Generate Paper');
+      checkGenerateReady();
+    });
+
+    // ── Grade: file / folder pickers ───────────────────────────────────────
+    document.getElementById('select-entry-btn').addEventListener('click', async () => {
+      const path = await window.api.openFile([{ name: 'Excel', extensions: ['xlsx'] }]);
+      if (!path) return;
+      entryPath = path;
+      const lbl = document.getElementById('entry-file-label');
+      lbl.textContent = path.replace(/.*[\\/]/, '');
+      lbl.className = 'file-pill loaded';
+
+      // Auto-populate exam info from the Metadata tab
+      const warn = document.getElementById('metadata-warning');
+      warn.style.display = 'none';
+      warn.textContent = '';
+      try {
+        const meta = await window.api.call('read-metadata', { path });
+        if (meta.success) {
+          document.getElementById('g-school-name').value = meta.school_name;
+          document.getElementById('g-campus-name').value = meta.campus_name;
+          document.getElementById('g-grade').value = meta.grade;
+        } else {
+          warn.textContent = 'Could not read exam info from file.';
+          warn.style.display = 'block';
+        }
+      } catch (e) {
+        warn.textContent = 'Could not read exam info from file.';
+        warn.style.display = 'block';
+      }
+
+      checkGradeReady();
+    });
+
+    document.getElementById('select-output-btn').addEventListener('click', async () => {
+      const path = await window.api.openFolder();
+      if (!path) return;
+      outputDir = path;
+      const lbl = document.getElementById('output-folder-label');
+      lbl.textContent = path;
+      lbl.className = 'file-pill loaded';
+      checkGradeReady();
+    });
+
+    ['g-school-name', 'g-campus-name', 'g-grade'].forEach(id => {
+      document.getElementById(id).addEventListener('input', checkGradeReady);
+    });
+
+    function checkGradeReady() {
+      const ok = (
+        entryPath &&
+        outputDir &&
+        document.getElementById('g-school-name').value.trim() &&
+        document.getElementById('g-campus-name').value.trim() &&
+        document.getElementById('g-grade').value.trim()
+      );
+      document.getElementById('grade-btn').disabled = !ok;
+    }
+
+    // ── Grade action ───────────────────────────────────────────────────────
+    document.getElementById('grade-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('grade-btn');
+      setLoading(btn, 'Generating Reports...');
+
+      const payload = {
+        entry_sheet_path: entryPath,
+        output_folder:    outputDir,
+        school_name:      document.getElementById('g-school-name').value.trim(),
+        campus_name:      document.getElementById('g-campus-name').value.trim(),
+        grade:            document.getElementById('g-grade').value.trim(),
+      };
+
+      try {
+        const res = await window.api.call('grade', payload);
+        if (res.output_dir) {
+          showBanner('grade-result', 'success', `Reports saved to: ${res.output_dir}`, res.output_dir);
+        } else {
+          const msg = res.message || (Array.isArray(res.errors) ? res.errors.join(', ') : String(res.errors || 'Grading failed'));
+          showBanner('grade-result', 'error', msg);
+        }
+      } catch (e) {
+        showBanner('grade-result', 'error', e.message);
+      }
+
+      clearLoading(btn, 'Generate Reports');
+      checkGradeReady();
+    });
+
+    // ── UI helpers ─────────────────────────────────────────────────────────
+    function setLoading(btn, label) {
+      btn.disabled = true;
+      const spinner = document.createElement('span');
+      spinner.className = 'spinner';
+      btn.innerHTML = '';
+      btn.appendChild(spinner);
+      btn.appendChild(document.createTextNode(' ' + label));
+    }
+
+    function clearLoading(btn, label) {
+      btn.innerHTML = '';
+      btn.textContent = label;
+    }
+
+    function showBanner(containerId, type, message, openPath) {
+      const container = document.getElementById(containerId);
+      container.innerHTML = '';
+
+      const banner = document.createElement('div');
+      banner.className = 'banner banner-' + (type === 'success' ? 'success' : 'error');
+
+      const text = document.createElement('div');
+      text.className = 'banner-text';
+      text.textContent = message;
+
+      banner.appendChild(text);
+
+      if (type === 'success' && openPath) {
+        const openBtn = document.createElement('button');
+        openBtn.className = 'btn btn-ghost';
+        openBtn.textContent = 'Open Folder';
+        openBtn.addEventListener('click', () => {
+          console.log('[openPath] path:', openPath);
+          window.api.openPath(openPath);
+        });
+        banner.appendChild(openBtn);
+      }
+
+      container.appendChild(banner);
+    }
+
+    // ── Run Demo (dev only) ────────────────────────────────────────────────
+    if (window.api && window.api.isDev) {
+      document.getElementById('demo-area').style.display = '';
+    }
+
+    document.getElementById('demo-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('demo-btn');
+      setLoading(btn, 'Running...');
+      const resultId = activePanel === 'grade' ? 'grade-result' : 'generate-result';
+      try {
+        const res = await window.api.call('run-demo', {});
+        if (res.status === 'ok') {
+          showBanner(resultId, 'success', `Demo complete. Output: ${res.output_dir}`, res.output_dir);
+        } else {
+          const msg = Array.isArray(res.errors) ? res.errors.join(', ') : 'Demo failed';
+          showBanner(resultId, 'error', msg);
+        }
+      } catch (e) {
+        showBanner('generate-result', 'error', 'Demo failed: ' + e.message);
+      }
+      clearLoading(btn, 'Run Demo');
+    });
+
+    // ── Init ───────────────────────────────────────────────────────────────
+    // Only start after the main process pushes the confirmed Flask port.
+    // preload.js dispatches 'backend-ready' when it receives 'backend-port' from main.js.
+    window.addEventListener('backend-ready', async () => {
+      await checkBackendStatus();
+      try {
+        const res = await window.api.call('check-bank', {});
+        if (res.exists) {
+          setBankStatus(res.filename);
+          await fetchChapters();
+        }
+      } catch (e) {
+        console.error('[init] check-bank error:', e);
+      }
+    });
+
+    }); // end DOMContentLoaded
+  </script>
+
+</body>
+</html>

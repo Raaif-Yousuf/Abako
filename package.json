@@ -1,0 +1,42 @@
+{
+  "name": "abako",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "python build_sidecar.py && electron-builder --win portable"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "^42.0.0",
+    "electron-builder": "^26.8.1",
+    "tailwindcss": "^3.4.0"
+  },
+  "build": {
+    "appId": "com.abakotech.acs",
+    "productName": "Abako Competition Suite",
+    "win": {
+      "target": "portable"
+    },
+    "files": [
+      "index.html",
+      "main.js",
+      "preload.js",
+      "dist/",
+      "src/"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/",
+        "to": "resources/",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ]
+  }
+}

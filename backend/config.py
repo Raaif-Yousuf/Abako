@@ -1,0 +1,4 @@
+EXAM_DURATION_MINUTES = 30
+TOTAL_QUESTIONS = 60
+QUESTION_BANK_PATH = "resources/question_bank.xlsx"
+OUTPUT_BASE_PATH = "output"

@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Stop-Process *)",
+      "Bash(venv\\\\Scripts\\\\python.exe *)",
+      "Bash(Test-Path *)",
+      "PowerShell(Out-Null *)",
+      "PowerShell(Get-Job *)",
+      "Bash(npm start *)",
+      "PowerShell(Remove-Item *)",
+      "PowerShell(Set-Location \"C:\\\\Users\\\\raaif\\\\Abako\"; $p = New-Object System.Diagnostics.Process; $p.StartInfo.FileName = \"resources\\\\abako_sidecar\\\\abako_sidecar.exe\"; $p.StartInfo.UseShellExecute = $false; $p.StartInfo.RedirectStandardOutput = $true; $p.StartInfo.RedirectStandardError = $true; $p.StartInfo.CreateNoWindow = $true; $p.Start\\(\\); $line = \"\"; $task = [System.Threading.Tasks.Task]::Run\\({ $p.StandardOutput.ReadLine\\(\\) }\\); if \\($task.Wait\\(8000\\)\\) { $line = $task.Result }; $err = $p.StandardError.ReadToEnd\\(\\); Write-Host \"Line: '$line'\"; Write-Host \"Err: '$err'\"; if \\(-not $p.HasExited\\) { $p.Kill\\(\\) })",
+      "PowerShell(Set-Location \"C:\\\\Users\\\\raaif\\\\Abako\"; $psi = New-Object System.Diagnostics.ProcessStartInfo\\(\"resources\\\\abako_sidecar\\\\abako_sidecar.exe\"\\); $psi.UseShellExecute = $false; $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true; $psi.CreateNoWindow = $true; $p = [System.Diagnostics.Process]::Start\\($psi\\); $started = [System.DateTime]::Now; $line = $null; while \\(\\([System.DateTime]::Now - $started\\).TotalSeconds -lt 8 -and $line -eq $null\\) { if \\($p.StandardOutput.Peek\\(\\) -ge 0\\) { $line = $p.StandardOutput.ReadLine\\(\\) } else { Start-Sleep -Milliseconds 200 } }; $errText = \"\"; try { $errText = $p.StandardError.ReadToEnd\\(\\) } catch {}; if \\(-not $p.HasExited\\) { $p.Kill\\(\\) }; Write-Host \"LINE=[$line]\"; Write-Host \"ERR=[$errText]\")",
+      "Bash(timeout 8 \"resources/abako_sidecar/abako_sidecar.exe\")"
+    ]
+  }
+}
