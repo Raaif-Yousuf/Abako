@@ -1,108 +1,520 @@
+"""Printable question paper and answer key for an Abako competition round.
+
+Both documents are painted with a plain :class:`~reportlab.pdfgen.canvas.Canvas`
+rather than a Platypus flowable pipeline, because the one property that
+matters most for a document a room full of students writes on is that a
+question is never split across a column or page break. The question paper is
+therefore built in two passes: every question is measured first (wrapped at
+the exact column width it will be drawn at) so the whole set can be packed
+into whole, unbroken blocks before a single stroke is drawn. That also means
+the total page count is known up front, which is what lets the footer say
+"Page N of M".
+
+Every colour, type size and spacing value comes from ``backend/pdf_theme.py``
+- the shared visual language for the whole document suite - except for the
+font used for question text itself. Competition questions can contain pi, a
+radical, a times/divide sign or a less-than-or-equal sign, and none of those
+live in Helvetica's built-in base-14 encoding; they print as empty boxes.
+DejaVu Sans covers them, and it already ships inside matplotlib, which the
+report generator depends on, so no new font asset has to be bundled with the
+app.
+"""
+
+import math
 import os
+from xml.sax.saxutils import escape
 
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import (
-    BaseDocTemplate,
-    Frame,
-    Image,
-    PageTemplate,
-    Paragraph,
-    SimpleDocTemplate,
-    Spacer,
+from reportlab.pdfbase.pdfmetrics import stringWidth
+from reportlab.pdfgen.canvas import Canvas
+from reportlab.platypus import Paragraph, Table, TableStyle
+
+from backend import pdf_theme as theme
+
+# ---------------------------------------------------------------------------
+# Fonts
+# ---------------------------------------------------------------------------
+
+BODY_FONT = "Helvetica"
+BODY_FONT_BOLD = "Helvetica-Bold"
+
+try:
+    import matplotlib
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+
+    _ttf_dir = os.path.join(matplotlib.get_data_path(), "fonts", "ttf")
+    pdfmetrics.registerFont(TTFont("AbakoExamBody", os.path.join(_ttf_dir, "DejaVuSans.ttf")))
+    pdfmetrics.registerFont(
+        TTFont("AbakoExamBody-Bold", os.path.join(_ttf_dir, "DejaVuSans-Bold.ttf"))
+    )
+    BODY_FONT = "AbakoExamBody"
+    BODY_FONT_BOLD = "AbakoExamBody-Bold"
+except Exception:
+    # If matplotlib or its bundled fonts are ever unavailable, fall back to
+    # the base-14 font rather than fail exam generation outright.
+    pass
+
+
+def _hex(color):
+    return f"#{int(color.red * 255):02x}{int(color.green * 255):02x}{int(color.blue * 255):02x}"
+
+
+_MIST_HEX = _hex(theme.MIST)
+_CHARCOAL_HEX = _hex(theme.CHARCOAL)
+
+# ---------------------------------------------------------------------------
+# Question paper geometry
+# ---------------------------------------------------------------------------
+
+GUTTER = 0.34 * inch
+COL_WIDTH = (theme.CONTENT_W - GUTTER) / 2
+NUM_TO_TEXT_GAP = 6  # breathing room between the number and the question text
+
+ANSWER_BOX_H = 56
+ANSWER_BOX_STRETCH_CAP = 22  # most a box may grow to help a column reach the bottom
+TAG_GAP = 3
+TEXT_TO_BOX_GAP = theme.GAP_XS + 2
+BLOCK_GAP = theme.GAP_MD
+
+RUNNING_HEADER_H = 0.95 * inch
+
+
+def _num_gutter_for(question_count):
+    """Width of the hanging indent reserved for the question number.
+
+    Sized from the widest number that will actually be drawn (e.g. "60."),
+    not a guessed constant - a fixed indent narrower than the boldest
+    two-digit number is what used to make "10." run straight into the
+    question text.
+    """
+    widest = f"{max(question_count, 1)}."
+    return stringWidth(widest, BODY_FONT_BOLD, theme.SIZE_H3) + NUM_TO_TEXT_GAP
+
+_question_style = ParagraphStyle(
+    "examQuestion",
+    fontName=BODY_FONT,
+    fontSize=theme.SIZE_BODY,
+    leading=theme.SIZE_BODY * theme.LEADING,
+    textColor=theme.INK,
 )
+_tag_style = ParagraphStyle(
+    "examTag",
+    fontName=BODY_FONT_BOLD,
+    fontSize=theme.SIZE_MICRO,
+    leading=theme.SIZE_MICRO * 1.3,
+    textColor=theme.SLATE,
+)
+def _has_inline_tag(text):
+    stripped = text.strip()
+    return stripped.startswith("[") and "]" in stripped[:40]
 
-_LOGO_W = 180
-_LOGO_H = 50
 
-def _draw_header_footer(canvas, doc, school_info):
-    canvas.saveState()
-    page_w = letter[0]
-    logo_x = (page_w - _LOGO_W) / 2
-    logo_y = letter[1] - 0.4*inch - _LOGO_H  # 0.4 inch clearance above logo
+def _build_question(index, question, text_width):
+    text = str(question.get("Question_Text", f"Question {index + 1}"))
+    tag = None
+    if not _has_inline_tag(text):
+        chapter = question.get("Chapter")
+        if chapter:
+            tag = str(chapter)
 
-    logo_path = os.path.join('resources', 'abako_logo.png')
-    if os.path.exists(logo_path):
-        canvas.drawImage(logo_path, logo_x, logo_y, width=_LOGO_W, height=_LOGO_H, preserveAspectRatio=True)
-    else:
-        canvas.setFont('Helvetica-Bold', 14)
-        canvas.drawCentredString(page_w / 2, logo_y + _LOGO_H / 2, "LOGO")
+    para = Paragraph(escape(text), _question_style)
+    _, text_h = para.wrap(text_width, 5000)
 
-    canvas.setFont('Helvetica', 9)
-    info_parts = [
-        f"School: {school_info.get('School Name', 'Mock School')}",
-        f"Campus: {school_info.get('Campus', 'Main')}",
-        f"Grade: {school_info.get('Grade', '10')}",
-        f"Date: {school_info.get('Exam Date', '2026-05-05')}"
+    tag_para = None
+    tag_h = 0
+    if tag:
+        tag_para = Paragraph(theme.letterspace(tag), _tag_style)
+        _, raw_h = tag_para.wrap(text_width, 200)
+        tag_h = raw_h + TAG_GAP
+
+    base_height = tag_h + text_h + TEXT_TO_BOX_GAP + ANSWER_BOX_H
+    return {
+        "number": index + 1,
+        "para": para,
+        "text_h": text_h,
+        "tag_para": tag_para,
+        "tag_h": tag_h,
+        "base_height": base_height,
+        "height": base_height + BLOCK_GAP,
+    }
+
+
+def _layout_pages(blocks, first_col_h, rest_col_h):
+    """Pack whole question blocks into columns and pages.
+
+    Each block is placed as an indivisible unit, so a question's number can
+    never end up alone at the bottom of a column - if it does not fit, the
+    whole block moves to the next column or page instead.
+    """
+    pages = [{0: [], 1: []}]
+    cap = [first_col_h, first_col_h]
+    col = 0
+
+    for block in blocks:
+        h = block["height"]
+        if h <= cap[col] or not pages[-1][col]:
+            pages[-1][col].append(block)
+            cap[col] -= h
+            continue
+        if col == 0:
+            col = 1
+            if h <= cap[col] or not pages[-1][col]:
+                pages[-1][col].append(block)
+                cap[col] -= h
+                continue
+        pages.append({0: [], 1: []})
+        cap = [rest_col_h, rest_col_h]
+        col = 0
+        pages[-1][col].append(block)
+        cap[col] -= h
+
+    return pages
+
+
+def _identity_cell(label, value):
+    value_text = escape(str(value)) if value else "—"
+    markup = (
+        f'<font face="{BODY_FONT_BOLD}" size="{theme.SIZE_MICRO}" color="{_MIST_HEX}">'
+        f"{theme.letterspace(label)}</font><br/>"
+        f'<font face="{BODY_FONT_BOLD}" size="{theme.SIZE_H3}" color="{_CHARCOAL_HEX}">'
+        f"{value_text}</font>"
+    )
+    return Paragraph(markup, ParagraphStyle("idcell", leading=theme.SIZE_H3 * 1.3))
+
+
+def _make_identity_table(school_info):
+    data = [[
+        _identity_cell("School", school_info.get("School Name", "")),
+        _identity_cell("Campus", school_info.get("Campus", "")),
+        _identity_cell("Grade", school_info.get("Grade", "")),
+        _identity_cell("Date", school_info.get("Exam Date", "")),
+    ]]
+    col_widths = [
+        theme.CONTENT_W * 0.40,
+        theme.CONTENT_W * 0.20,
+        theme.CONTENT_W * 0.15,
+        theme.CONTENT_W * 0.25,
     ]
-    canvas.drawCentredString(page_w / 2, logo_y - 14, " | ".join(info_parts))
+    table = Table(data, colWidths=col_widths)
+    table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    return table
 
-    canvas.setFont('Helvetica-Oblique', 10)
-    footer_text = "I hereby confirm I have adhered to the honor code: _________________________"
-    canvas.drawCentredString(letter[0]/2.0, 0.5*inch, footer_text)
 
+def _page1_chrome_geometry(identity_h):
+    """Every vertical position on the page-1 header/student block, computed
+    once from pdf_theme's spacing scale. Both the measuring pass (which
+    needs to know where column 1 starts before anything is drawn) and the
+    drawing pass read from this single calculation, so the two can never
+    drift apart the way a separately-guessed constant used to."""
+    top = theme.PAGE_H - 0.46 * inch
+    rule_y = top - theme.LOGO_H - 9
+    identity_top = rule_y - theme.GAP_MD
+    student_top = identity_top - identity_h - theme.GAP_LG
+
+    label_y = student_top
+    line_y = label_y - 15
+    honour_top = line_y - theme.GAP_LG
+    honour_line_y = honour_top - 13
+    signature_y = honour_line_y - 10
+
+    return {
+        "top": top,
+        "rule_y": rule_y,
+        "identity_top": identity_top,
+        "label_y": label_y,
+        "line_y": line_y,
+        "honour_top": honour_top,
+        "honour_line_y": honour_line_y,
+        "signature_y": signature_y,
+        "col_top": signature_y - theme.GAP_LG,
+    }
+
+
+def _draw_student_block(canvas, geo):
+    """Ruled Name / Student ID / School lines plus a single honour-code
+    signature line. This appears once, on page 1, never repeated."""
+    field_widths = [theme.CONTENT_W * 0.40, theme.CONTENT_W * 0.22, theme.CONTENT_W * 0.38]
+    labels = ["Name", "Student ID", "School"]
+
+    x = theme.MARGIN_X
+    canvas.setFont(BODY_FONT_BOLD, theme.SIZE_MICRO)
+    canvas.setFillColor(theme.MIST)
+    for width, label in zip(field_widths, labels, strict=True):
+        canvas.drawString(x, geo["label_y"], label.upper())
+        theme.draw_rule(canvas, x, geo["line_y"], x + width - 16, theme.RULE_STRONG, 0.8)
+        x += width
+
+    canvas.setFont(BODY_FONT, theme.SIZE_SMALL)
+    canvas.setFillColor(theme.SLATE)
+    canvas.drawString(
+        theme.MARGIN_X, geo["honour_top"],
+        "I confirm that I have completed this exam honestly and without unauthorized assistance.",
+    )
+    theme.draw_rule(canvas, theme.MARGIN_X, geo["honour_line_y"], theme.MARGIN_X + 2.6 * inch,
+                     theme.RULE_STRONG, 0.8)
+    canvas.setFont(BODY_FONT_BOLD, theme.SIZE_MICRO)
+    canvas.setFillColor(theme.MIST)
+    canvas.drawString(theme.MARGIN_X, geo["signature_y"], "SIGNATURE")
+
+
+def _draw_page1_header(canvas, identity_table, identity_h, geo):
+    theme.draw_wordmark(canvas, theme.MARGIN_X, geo["top"] - theme.LOGO_H)
+
+    canvas.setFont(BODY_FONT_BOLD, theme.SIZE_H1)
+    canvas.setFillColor(theme.CHARCOAL)
+    canvas.drawRightString(theme.PAGE_W - theme.MARGIN_X, geo["top"] - theme.LOGO_H + 8,
+                            "QUESTION PAPER")
+
+    theme.draw_rule(canvas, theme.MARGIN_X, geo["rule_y"], theme.PAGE_W - theme.MARGIN_X,
+                     theme.RULE_STRONG, 0.8)
+    identity_table.drawOn(canvas, theme.MARGIN_X, geo["identity_top"] - identity_h)
+
+    _draw_student_block(canvas, geo)
+
+
+def _draw_running_header(canvas, school_info, page_num, total_pages):
+    top = theme.PAGE_H - 0.42 * inch
+    school = str(school_info.get("School Name", ""))
+    if len(school) > 46:
+        school = school[:43] + "…"
+    grade = school_info.get("Grade", "")
+
+    canvas.setFont(BODY_FONT_BOLD, theme.SIZE_H3)
+    canvas.setFillColor(theme.CHARCOAL)
+    canvas.drawString(theme.MARGIN_X, top, school)
+
+    canvas.setFont(BODY_FONT, theme.SIZE_SMALL)
+    canvas.setFillColor(theme.SLATE)
+    grade_text = str(grade)
+    sub = grade_text if grade_text.lower().startswith("grade") else f"Grade {grade_text}"
+    canvas.drawString(theme.MARGIN_X, top - 13, sub if grade else "")
+
+    canvas.setFont(BODY_FONT_BOLD, theme.SIZE_SMALL)
+    canvas.setFillColor(theme.SLATE)
+    canvas.drawRightString(theme.PAGE_W - theme.MARGIN_X, top - 2,
+                            f"PAGE {page_num} OF {total_pages}")
+
+    rule_y = top - 22
+    theme.draw_rule(canvas, theme.MARGIN_X, rule_y, theme.PAGE_W - theme.MARGIN_X, theme.RULE, 0.7)
+    return rule_y - theme.GAP_MD
+
+
+def _draw_footer(canvas, page_num, total_pages):
+    y = 0.46 * inch
+    theme.draw_rule(canvas, theme.MARGIN_X, y + 12, theme.PAGE_W - theme.MARGIN_X, theme.RULE, 0.6)
+    canvas.setFont(BODY_FONT, theme.SIZE_MICRO)
+    canvas.setFillColor(theme.MIST)
+    canvas.drawString(theme.MARGIN_X, y, "Abako Math Competition")
+    canvas.drawRightString(theme.PAGE_W - theme.MARGIN_X, y, f"Page {page_num} of {total_pages}")
+
+
+def _draw_answer_box(canvas, x, y_top, width, height):
+    canvas.saveState()
+    canvas.setStrokeColor(theme.RULE_STRONG)
+    canvas.setLineWidth(0.7)
+    canvas.roundRect(x, y_top - height, width, height, 3, stroke=1, fill=0)
+
+    canvas.setFont(BODY_FONT_BOLD, theme.SIZE_MICRO)
+    canvas.setFillColor(theme.MIST)
+    label_y = y_top - height + 8
+    canvas.drawString(x + 6, label_y, "ANSWER")
+    theme.draw_rule(canvas, x + 48, label_y + 3, x + width - 8, theme.RULE, 0.6)
     canvas.restoreState()
 
+
+def _draw_question_block(canvas, block, x, y_top, num_gutter, text_width, extra_box_h=0):
+    cursor = y_top
+    text_x = x + num_gutter
+
+    if block["tag_para"]:
+        tag_h = block["tag_h"] - TAG_GAP
+        block["tag_para"].drawOn(canvas, text_x, cursor - tag_h)
+        cursor -= block["tag_h"]
+
+    canvas.setFont(BODY_FONT_BOLD, theme.SIZE_H3)
+    canvas.setFillColor(theme.CHARCOAL)
+    canvas.drawString(x, cursor - theme.SIZE_H3, f"{block['number']}.")
+
+    block["para"].drawOn(canvas, text_x, cursor - block["text_h"])
+    cursor -= block["text_h"] + TEXT_TO_BOX_GAP
+
+    _draw_answer_box(canvas, text_x, cursor, text_width, ANSWER_BOX_H + extra_box_h)
+
+
+def _stretch_for_column(blocks_in_col, capacity):
+    """How much extra height each answer box in a packed column may grow so
+    the column reads flush with the bottom margin, capped so a sparsely
+    filled trailing column doesn't get one giant box."""
+    if not blocks_in_col:
+        return 0
+    used = sum(b["height"] for b in blocks_in_col)
+    leftover = capacity - used
+    if leftover <= 0:
+        return 0
+    return min(leftover / len(blocks_in_col), ANSWER_BOX_STRETCH_CAP)
+
+
 def generate_question_paper(filename, school_info, questions):
-    os.makedirs(os.path.dirname(filename) or '.', exist_ok=True)
+    os.makedirs(os.path.dirname(filename) or ".", exist_ok=True)
 
-    doc = BaseDocTemplate(filename, pagesize=letter, topMargin=2.0*inch, bottomMargin=1.0*inch, leftMargin=0.5*inch, rightMargin=0.5*inch)
+    num_gutter = _num_gutter_for(len(questions))
+    text_width = COL_WIDTH - num_gutter
+    blocks = [_build_question(i, q, text_width) for i, q in enumerate(questions)]
 
-    def on_page(canvas, doc):
-        _draw_header_footer(canvas, doc, school_info)
+    identity_table = _make_identity_table(school_info)
+    _, identity_h = identity_table.wrap(theme.CONTENT_W, 2000)
+    geo = _page1_chrome_geometry(identity_h)
 
-    col_width = (letter[0] - 1.5*inch) / 2
-    frame1 = Frame(0.5*inch, 1.0*inch, col_width, letter[1] - 3.0*inch, id='col1')
-    frame2 = Frame(0.5*inch + col_width + 0.5*inch, 1.0*inch, col_width, letter[1] - 3.0*inch, id='col2')
+    col_top_page1 = geo["col_top"]
+    col_top_rest = theme.PAGE_H - RUNNING_HEADER_H
 
-    template = PageTemplate(id='TwoCol', frames=[frame1, frame2], onPage=on_page)
-    doc.addPageTemplates([template])
+    first_col_h = col_top_page1 - theme.MARGIN_BOTTOM
+    rest_col_h = col_top_rest - theme.MARGIN_BOTTOM
 
-    styles = getSampleStyleSheet()
-    styleN = ParagraphStyle(
-        'NormalQuestion',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=10,
-        leading=14,
-        spaceAfter=12
-    )
+    pages = _layout_pages(blocks, first_col_h, rest_col_h)
+    total_pages = len(pages)
 
-    story = []
-    for i, q in enumerate(questions):
-        q_text = q.get('Question_Text', f'Question {i+1}')
-        text = f"<b>{i+1}.</b> {q_text}<br/><br/>Answer: ___________________________"
-        story.append(Paragraph(text, styleN))
+    col_x = [theme.MARGIN_X, theme.MARGIN_X + COL_WIDTH + GUTTER]
 
-    doc.build(story)
+    canvas = Canvas(filename, pagesize=(theme.PAGE_W, theme.PAGE_H))
+    for page_index, page in enumerate(pages):
+        if page_index == 0:
+            _draw_page1_header(canvas, identity_table, identity_h, geo)
+            col_top = col_top_page1
+            capacity = first_col_h
+        else:
+            _draw_running_header(canvas, school_info, page_index + 1, total_pages)
+            col_top = col_top_rest
+            capacity = rest_col_h
 
-def generate_answer_key(filename, questions, school_name='', campus_name='', grade='', exam_date=''):
-    os.makedirs(os.path.dirname(filename) or '.', exist_ok=True)
+        for col in (0, 1):
+            col_blocks = page[col]
+            extra = _stretch_for_column(col_blocks, capacity)
+            y = col_top
+            for block in col_blocks:
+                _draw_question_block(canvas, block, col_x[col], y, num_gutter, text_width, extra)
+                y -= block["height"] + extra
 
-    doc = SimpleDocTemplate(filename, pagesize=letter, topMargin=1*inch, bottomMargin=1*inch)
-    styles = getSampleStyleSheet()
+        _draw_footer(canvas, page_index + 1, total_pages)
+        canvas.showPage()
 
-    story = []
+    canvas.save()
 
-    logo_path = os.path.join('resources', 'abako_logo.png')
-    if os.path.exists(logo_path):
-        logo_img = Image(logo_path, width=_LOGO_W, height=_LOGO_H)
-        logo_img.hAlign = 'CENTER'
-        story.append(logo_img)
-    story.append(Spacer(1, 8))
 
-    header_style = ParagraphStyle('AKHeader', parent=styles['Normal'], alignment=1, fontSize=10, spaceAfter=6)
-    header_text = f"School: {school_name} | Campus: {campus_name} | Grade: {grade} | Date: {exam_date}"
-    story.append(Paragraph(header_text, header_style))
-    story.append(Spacer(1, 0.1*inch))
+# ---------------------------------------------------------------------------
+# Answer key
+# ---------------------------------------------------------------------------
 
-    story.append(Paragraph("<b>Answer Key</b>", styles['Title']))
-    story.append(Spacer(1, 0.2*inch))
+_KEY_HEADER_FONT_SIZE = theme.SIZE_MICRO
 
-    styleN = ParagraphStyle('AKNormal', parent=styles['Normal'], fontName='Helvetica', fontSize=12)
-    for i, q in enumerate(questions):
-        ans = q.get('Correct_Answer', '')
-        story.append(Paragraph(f"{i+1}. {ans}", styleN))
 
-    doc.build(story)
+def _answer_key_grid(questions):
+    n = len(questions)
+    if n == 0:
+        return 1, 0, []
+    cols = max(1, min(5, math.ceil(n / 12)))
+    rows = math.ceil(n / cols)
+    groups = [questions[i * rows:(i + 1) * rows] for i in range(cols)]
+    return cols, rows, groups
+
+
+def generate_answer_key(filename, questions, school_name="", campus_name="", grade="", exam_date=""):
+    os.makedirs(os.path.dirname(filename) or ".", exist_ok=True)
+
+    canvas = Canvas(filename, pagesize=(theme.PAGE_W, theme.PAGE_H))
+
+    top = theme.PAGE_H - 0.46 * inch
+    theme.draw_wordmark(canvas, theme.MARGIN_X, top - theme.LOGO_H)
+
+    canvas.setFont(BODY_FONT_BOLD, theme.SIZE_H1)
+    canvas.setFillColor(theme.CHARCOAL)
+    canvas.drawRightString(theme.PAGE_W - theme.MARGIN_X, top - theme.LOGO_H + 14, "ANSWER KEY")
+
+    canvas.setFont(BODY_FONT_BOLD, theme.SIZE_SMALL)
+    canvas.setFillColor(theme.RED_DEEP)
+    canvas.drawRightString(theme.PAGE_W - theme.MARGIN_X, top - theme.LOGO_H,
+                            "CONFIDENTIAL — DO NOT DISTRIBUTE TO STUDENTS")
+
+    rule_y = top - theme.LOGO_H - 9
+    theme.draw_rule(canvas, theme.MARGIN_X, rule_y, theme.PAGE_W - theme.MARGIN_X, theme.RULE_STRONG, 0.8)
+
+    school_info = {
+        "School Name": school_name,
+        "Campus": campus_name,
+        "Grade": grade,
+        "Exam Date": exam_date,
+    }
+    identity_table = _make_identity_table(school_info)
+    identity_top = rule_y - theme.GAP_MD
+    _, identity_h = identity_table.wrap(theme.CONTENT_W, 2000)
+    identity_table.drawOn(canvas, theme.MARGIN_X, identity_top - identity_h)
+
+    grid_top = identity_top - identity_h - theme.GAP_LG
+
+    cols, rows, groups = _answer_key_grid(questions)
+
+    table_data = [["NO.", "ANSWER"] * cols]
+    for r in range(rows):
+        row = []
+        for group_index, group in enumerate(groups):
+            if r < len(group):
+                q_number = group_index * rows + r + 1
+                row.append(str(q_number))
+                row.append(str(group[r].get("Correct_Answer", "")))
+            else:
+                row.append("")
+                row.append("")
+        table_data.append(row)
+
+    col_w_no = 0.34 * inch
+    col_w_ans = (theme.CONTENT_W - cols * col_w_no) / cols if cols else theme.CONTENT_W
+    col_widths = [col_w_no, col_w_ans] * cols
+
+    style_cmds = [
+        ("FONTNAME", (0, 0), (-1, 0), BODY_FONT_BOLD),
+        ("FONTSIZE", (0, 0), (-1, 0), _KEY_HEADER_FONT_SIZE),
+        ("TEXTCOLOR", (0, 0), (-1, 0), theme.PAPER),
+        ("BACKGROUND", (0, 0), (-1, 0), theme.CHARCOAL),
+        ("FONTNAME", (0, 1), (-1, -1), BODY_FONT),
+        ("FONTSIZE", (0, 1), (-1, -1), theme.SIZE_BODY),
+        ("TEXTCOLOR", (0, 1), (-1, -1), theme.INK),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("LINEBELOW", (0, 0), (-1, 0), 0.8, theme.RULE_STRONG),
+        ("BOX", (0, 0), (-1, -1), 0.8, theme.RULE_STRONG),
+    ]
+    for r in range(1, rows + 1):
+        if r % 2 == 0:
+            style_cmds.append(("BACKGROUND", (0, r), (-1, r), theme.PANEL))
+    for group_index in range(1, cols):
+        c = group_index * 2
+        style_cmds.append(("LINEBEFORE", (c, 0), (c, -1), 0.8, theme.RULE_STRONG))
+    for group_index in range(cols):
+        c = group_index * 2
+        style_cmds.append(("FONTNAME", (c, 1), (c, -1), BODY_FONT_BOLD))
+        style_cmds.append(("TEXTCOLOR", (c, 1), (c, -1), theme.SLATE))
+
+    table = Table(table_data, colWidths=col_widths, repeatRows=1)
+    table.setStyle(TableStyle(style_cmds))
+    table_w, table_h = table.wrap(theme.CONTENT_W, grid_top - theme.MARGIN_BOTTOM)
+    table.drawOn(canvas, theme.MARGIN_X + (theme.CONTENT_W - table_w) / 2, grid_top - table_h)
+
+    footer_y = 0.46 * inch
+    theme.draw_rule(canvas, theme.MARGIN_X, footer_y + 12, theme.PAGE_W - theme.MARGIN_X, theme.RULE, 0.6)
+    canvas.setFont(BODY_FONT, theme.SIZE_MICRO)
+    canvas.setFillColor(theme.MIST)
+    canvas.drawString(theme.MARGIN_X, footer_y, "Marking aid only — keep out of student reach.")
+    canvas.drawRightString(theme.PAGE_W - theme.MARGIN_X, footer_y, f"{len(questions)} Questions")
+
+    canvas.showPage()
+    canvas.save()
