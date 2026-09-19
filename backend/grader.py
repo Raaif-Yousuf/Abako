@@ -1,3 +1,5 @@
+from collections import Counter
+
 import openpyxl
 
 from backend import config
@@ -119,11 +121,31 @@ def validate_and_grade(filepath):
     # Rank and Percentile
     graded_students.sort(key=lambda x: x["final_score"], reverse=True)
     n = len(graded_students)
-    for rank, s in enumerate(graded_students, start=1):
-        s["rank"] = rank
-        # Standard percentile formula relative to batch
-        percentile = round(((n - rank) / n) * 100, 1) if n > 1 else 100.0
-        s["percentile"] = percentile
+    counts = Counter(s["final_score"] for s in graded_students)
+
+    # Competition ranking ("1224"): tied students share the better rank and the
+    # next distinct score skips the tied places (e.g. 1, 2, 2, 4).
+    rank_for_score = {}
+    higher_count = 0
+    for score in sorted(counts.keys(), reverse=True):
+        rank_for_score[score] = higher_count + 1
+        higher_count += counts[score]
+
+    # Percentile rank = percentage of the cohort scoring strictly below this
+    # student's score, rounded to one decimal. Tied students always get the
+    # same percentile, and the top scorer approaches (but need not equal) 100.
+    if n == 1:
+        percentile_for_score = {graded_students[0]["final_score"]: 100.0}
+    else:
+        percentile_for_score = {}
+        lower_count = 0
+        for score in sorted(counts.keys()):
+            percentile_for_score[score] = round((lower_count / n) * 100, 1)
+            lower_count += counts[score]
+
+    for s in graded_students:
+        s["rank"] = rank_for_score[s["final_score"]]
+        s["percentile"] = percentile_for_score[s["final_score"]]
 
     return {
         "success": True,
