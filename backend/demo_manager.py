@@ -53,14 +53,23 @@ def run_demo():
 
         wb = openpyxl.load_workbook(e_xlsx)
         ws = wb["Entry"]
+
+        # The entry sheet's dropdowns are per question: "<answer> - Correct",
+        # "Not <answer> - Incorrect" or "Unattempted". The grader only accepts
+        # those three shapes, so the demo has to fill the same values a marker
+        # would pick rather than a bare "Correct".
+        answers = [str(q.get("Correct_Answer", "")) for q in questions]
+        options = [
+            (f"{a} - Correct", f"Not {a} - Incorrect", "Unattempted")
+            for a in answers
+        ]
+
         for i in range(1, 21):
-            ws.append(
-                [f"S{i:03d}", f"Demo Student {i}", "2010-01-01"] +
-                random.choices(
-                    ["Correct", "Incorrect", "Unattempted"],
-                    weights=[0.6, 0.3, 0.1], k=60
-                )
-            )
+            row = [
+                random.choices(opts, weights=[0.6, 0.3, 0.1], k=1)[0]
+                for opts in options
+            ]
+            ws.append([f"S{i:03d}", f"Demo Student {i}", "2010-01-01"] + row)
         wb.save(e_xlsx)
 
         result = validate_and_grade(e_xlsx)
