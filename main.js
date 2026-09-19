@@ -156,12 +156,16 @@ function startPythonProcess() {
   }
 
   const backendScript = path.join(__dirname, 'backend', 'main.py');
-  const venvPython = path.join(__dirname, 'venv', 'Scripts', 'python.exe');
+  const venvCandidates = [
+    path.join(__dirname, '.venv', 'Scripts', 'python.exe'),
+    path.join(__dirname, 'venv', 'Scripts', 'python.exe')
+  ];
+  const venvPython = venvCandidates.find(fs.existsSync);
   const sidecarDev = path.join(__dirname, 'resources', 'abako_sidecar', 'abako_sidecar.exe');
   const fallback = fs.existsSync(sidecarDev) ? { command: sidecarDev, args: [] } : null;
 
   // Prefer the project venv so Flask and all deps are guaranteed available
-  const pythonCmd = fs.existsSync(venvPython) ? venvPython : 'python';
+  const pythonCmd = venvPython || 'python';
   console.log(`[main] startPythonProcess: using Python at "${pythonCmd}"`);
   console.log(`[main] startPythonProcess: backend script at "${backendScript}"`);
 
