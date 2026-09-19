@@ -1,15 +1,22 @@
 {
   "name": "abako",
   "version": "1.0.0",
-  "description": "",
+  "description": "Desktop app for running a math competition: generates exams and answer keys from an Excel question bank, grades entries, and produces per-student PDF reports.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "build": "python build_sidecar.py && electron-builder --win portable"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "electron",
+    "flask",
+    "pdf",
+    "reportlab",
+    "education",
+    "exams"
+  ],
+  "author": "Raaif Yousuf",
+  "license": "MIT",
   "type": "commonjs",
   "devDependencies": {
     "electron": "^42.0.0",
@@ -38,5 +45,9 @@
         ]
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Raaif-Yousuf/Abako.git"
   }
 }
