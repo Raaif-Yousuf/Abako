@@ -1,4 +1,5 @@
 import os
+
 import openpyxl
 
 CHAPTERS = ["Algebra", "Geometry", "Arithmetic"]
@@ -9,7 +10,7 @@ def create_test_bank():
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
 
-    for i, chapter in enumerate(CHAPTERS):
+    for chapter in CHAPTERS:
         ws = wb.create_sheet(chapter)
         ws.append(["Question_ID", "Question_Text", "Correct_Answer"])
         for j in range(1, QUESTIONS_PER_CHAPTER + 1):
@@ -26,7 +27,7 @@ def create_test_bank():
         answer = str(j * (j + 1))
         ws_filler.append([q_id, q_text, answer])
 
-    output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources", "question_bank.xlsx")
+    output_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "resources", "question_bank.xlsx")
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     wb.save(output_path)
     print(f"Test bank created: {output_path}")
