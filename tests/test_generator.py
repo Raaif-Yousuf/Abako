@@ -94,6 +94,80 @@ def test_chapter_allocations_invalid_sum():
     with pytest.raises(ValueError, match="sum"):
         select_questions(data_dict, ["Chapter A"], chapter_allocations={"Chapter A": 50})
 
+def test_no_duplicate_question_ids_across_many_runs():
+    # Chapter A and Filler intentionally share 10 Question_IDs, simulating a
+    # question bank where a chapter sheet and the Filler sheet overlap.
+    shared_ids = [f"shared_{i}" for i in range(10)]
+    chapter_a_ids = shared_ids + [f"A_{i}" for i in range(20)]  # 30 total
+    filler_ids = shared_ids + [f"F_{i}" for i in range(40)]  # 50 total
+
+    for _ in range(30):
+        data_dict = {
+            "Chapter A": pd.DataFrame({"Question_ID": list(chapter_a_ids)}),
+            "Filler": pd.DataFrame({"Question_ID": list(filler_ids)}),
+        }
+        questions = select_questions(data_dict, ["Chapter A"])
+        assert len(questions) == 60
+        ids = [q["Question_ID"] for q in questions]
+        assert len(ids) == len(set(ids)), "duplicate Question_ID returned"
+
+
+def test_filler_as_selected_chapter_with_topup():
+    # Filler is itself one of the selected chapters (target 30), and Chapter A
+    # is short by 20, which must also be topped up from Filler without
+    # re-using the 30 questions Filler already gave up directly.
+    data_dict = {
+        "Chapter A": pd.DataFrame({"Question_ID": [f"A_{i}" for i in range(10)]}),
+        "Filler": pd.DataFrame({"Question_ID": [f"Filler_{i}" for i in range(50)]}),
+    }
+    questions = select_questions(data_dict, ["Chapter A", "Filler"])
+
+    assert len(questions) == 60
+    ids = [q["Question_ID"] for q in questions]
+    assert len(ids) == len(set(ids))
+
+    a_count = sum(1 for i in ids if i.startswith("A_"))
+    filler_count = sum(1 for i in ids if i.startswith("Filler_"))
+    assert a_count == 10
+    assert filler_count == 50
+
+
+def test_not_enough_unique_questions_raises_clear_value_error():
+    data_dict = {
+        "Chapter A": pd.DataFrame({"Question_ID": [f"A_{i}" for i in range(5)]}),
+        "Filler": pd.DataFrame({"Question_ID": [f"Filler_{i}" for i in range(5)]}),
+    }
+    with pytest.raises(ValueError) as exc_info:
+        select_questions(data_dict, ["Chapter A"])
+
+    message = str(exc_info.value)
+    assert "60" in message
+    assert "10" in message
+
+
+def test_zero_chapters_selected_raises():
+    data_dict = {
+        "Filler": pd.DataFrame({"Question_ID": [f"Filler_{i}" for i in range(60)]}),
+    }
+    with pytest.raises(ValueError):
+        select_questions(data_dict, [])
+
+
+def test_shuffle_false_preserves_chapter_order():
+    data_dict = {
+        "Chapter A": pd.DataFrame({"Question_ID": [f"A_{i}" for i in range(30)]}),
+        "Chapter B": pd.DataFrame({"Question_ID": [f"B_{i}" for i in range(30)]}),
+        "Filler": pd.DataFrame({"Question_ID": [f"Filler_{i}" for i in range(10)]}),
+    }
+    questions = select_questions(data_dict, ["Chapter B", "Chapter A"], shuffle=False)
+    ids = [q["Question_ID"] for q in questions]
+
+    assert len(ids) == 60
+    last_b_index = max(i for i, qid in enumerate(ids) if qid.startswith("B_"))
+    first_a_index = min(i for i, qid in enumerate(ids) if qid.startswith("A_"))
+    assert last_b_index < first_a_index
+
+
 def test_shuffle_false_deterministic():
     # With the same numpy/random seed and shuffle=False, two calls must return identical order.
     data_dict = {
