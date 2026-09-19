@@ -26,6 +26,7 @@ from xml.sax.saxutils import escape
 
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import inch
+from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen.canvas import Canvas
 from reportlab.platypus import Paragraph, Table, TableStyle
 
@@ -69,16 +70,27 @@ _CHARCOAL_HEX = _hex(theme.CHARCOAL)
 
 GUTTER = 0.34 * inch
 COL_WIDTH = (theme.CONTENT_W - GUTTER) / 2
-NUM_GUTTER = 20  # hanging indent reserved for the question number
-TEXT_WIDTH = COL_WIDTH - NUM_GUTTER
+NUM_TO_TEXT_GAP = 6  # breathing room between the number and the question text
 
 ANSWER_BOX_H = 56
+ANSWER_BOX_STRETCH_CAP = 22  # most a box may grow to help a column reach the bottom
 TAG_GAP = 3
 TEXT_TO_BOX_GAP = theme.GAP_XS + 2
 BLOCK_GAP = theme.GAP_MD
 
-STUDENT_BLOCK_H = 92
 RUNNING_HEADER_H = 0.95 * inch
+
+
+def _num_gutter_for(question_count):
+    """Width of the hanging indent reserved for the question number.
+
+    Sized from the widest number that will actually be drawn (e.g. "60."),
+    not a guessed constant - a fixed indent narrower than the boldest
+    two-digit number is what used to make "10." run straight into the
+    question text.
+    """
+    widest = f"{max(question_count, 1)}."
+    return stringWidth(widest, BODY_FONT_BOLD, theme.SIZE_H3) + NUM_TO_TEXT_GAP
 
 _question_style = ParagraphStyle(
     "examQuestion",
@@ -99,7 +111,7 @@ def _has_inline_tag(text):
     return stripped.startswith("[") and "]" in stripped[:40]
 
 
-def _build_question(index, question):
+def _build_question(index, question, text_width):
     text = str(question.get("Question_Text", f"Question {index + 1}"))
     tag = None
     if not _has_inline_tag(text):
@@ -108,23 +120,24 @@ def _build_question(index, question):
             tag = str(chapter)
 
     para = Paragraph(escape(text), _question_style)
-    _, text_h = para.wrap(TEXT_WIDTH, 5000)
+    _, text_h = para.wrap(text_width, 5000)
 
     tag_para = None
     tag_h = 0
     if tag:
         tag_para = Paragraph(theme.letterspace(tag), _tag_style)
-        _, raw_h = tag_para.wrap(TEXT_WIDTH, 200)
+        _, raw_h = tag_para.wrap(text_width, 200)
         tag_h = raw_h + TAG_GAP
 
-    height = tag_h + text_h + TEXT_TO_BOX_GAP + ANSWER_BOX_H + BLOCK_GAP
+    base_height = tag_h + text_h + TEXT_TO_BOX_GAP + ANSWER_BOX_H
     return {
         "number": index + 1,
         "para": para,
         "text_h": text_h,
         "tag_para": tag_para,
         "tag_h": tag_h,
-        "height": height,
+        "base_height": base_height,
+        "height": base_height + BLOCK_GAP,
     }
 
 
@@ -195,55 +208,76 @@ def _make_identity_table(school_info):
     return table
 
 
-def _draw_student_block(canvas, top):
+def _page1_chrome_geometry(identity_h):
+    """Every vertical position on the page-1 header/student block, computed
+    once from pdf_theme's spacing scale. Both the measuring pass (which
+    needs to know where column 1 starts before anything is drawn) and the
+    drawing pass read from this single calculation, so the two can never
+    drift apart the way a separately-guessed constant used to."""
+    top = theme.PAGE_H - 0.46 * inch
+    rule_y = top - theme.LOGO_H - 9
+    identity_top = rule_y - theme.GAP_MD
+    student_top = identity_top - identity_h - theme.GAP_LG
+
+    label_y = student_top
+    line_y = label_y - 15
+    honour_top = line_y - theme.GAP_LG
+    honour_line_y = honour_top - 13
+    signature_y = honour_line_y - 10
+
+    return {
+        "top": top,
+        "rule_y": rule_y,
+        "identity_top": identity_top,
+        "label_y": label_y,
+        "line_y": line_y,
+        "honour_top": honour_top,
+        "honour_line_y": honour_line_y,
+        "signature_y": signature_y,
+        "col_top": signature_y - theme.GAP_LG,
+    }
+
+
+def _draw_student_block(canvas, geo):
     """Ruled Name / Student ID / School lines plus a single honour-code
     signature line. This appears once, on page 1, never repeated."""
     field_widths = [theme.CONTENT_W * 0.40, theme.CONTENT_W * 0.22, theme.CONTENT_W * 0.38]
     labels = ["Name", "Student ID", "School"]
-    label_y = top
-    line_y = top - 15
 
     x = theme.MARGIN_X
     canvas.setFont(BODY_FONT_BOLD, theme.SIZE_MICRO)
     canvas.setFillColor(theme.MIST)
     for width, label in zip(field_widths, labels, strict=True):
-        canvas.drawString(x, label_y, label.upper())
-        theme.draw_rule(canvas, x, line_y, x + width - 16, theme.RULE_STRONG, 0.8)
+        canvas.drawString(x, geo["label_y"], label.upper())
+        theme.draw_rule(canvas, x, geo["line_y"], x + width - 16, theme.RULE_STRONG, 0.8)
         x += width
 
-    honour_top = line_y - theme.GAP_LG
-    honour_line_y = honour_top - 13
     canvas.setFont(BODY_FONT, theme.SIZE_SMALL)
     canvas.setFillColor(theme.SLATE)
     canvas.drawString(
-        theme.MARGIN_X, honour_top,
+        theme.MARGIN_X, geo["honour_top"],
         "I confirm that I have completed this exam honestly and without unauthorized assistance.",
     )
-    theme.draw_rule(canvas, theme.MARGIN_X, honour_line_y, theme.MARGIN_X + 2.6 * inch,
+    theme.draw_rule(canvas, theme.MARGIN_X, geo["honour_line_y"], theme.MARGIN_X + 2.6 * inch,
                      theme.RULE_STRONG, 0.8)
     canvas.setFont(BODY_FONT_BOLD, theme.SIZE_MICRO)
     canvas.setFillColor(theme.MIST)
-    canvas.drawString(theme.MARGIN_X, honour_line_y - 10, "SIGNATURE")
-
-    return honour_line_y - 10
+    canvas.drawString(theme.MARGIN_X, geo["signature_y"], "SIGNATURE")
 
 
-def _draw_page1_header(canvas, school_info, identity_table, identity_h):
-    top = theme.PAGE_H - 0.46 * inch
-    theme.draw_wordmark(canvas, theme.MARGIN_X, top - theme.LOGO_H)
+def _draw_page1_header(canvas, identity_table, identity_h, geo):
+    theme.draw_wordmark(canvas, theme.MARGIN_X, geo["top"] - theme.LOGO_H)
 
     canvas.setFont(BODY_FONT_BOLD, theme.SIZE_H1)
     canvas.setFillColor(theme.CHARCOAL)
-    canvas.drawRightString(theme.PAGE_W - theme.MARGIN_X, top - theme.LOGO_H + 8, "QUESTION PAPER")
+    canvas.drawRightString(theme.PAGE_W - theme.MARGIN_X, geo["top"] - theme.LOGO_H + 8,
+                            "QUESTION PAPER")
 
-    rule_y = top - theme.LOGO_H - 9
-    theme.draw_rule(canvas, theme.MARGIN_X, rule_y, theme.PAGE_W - theme.MARGIN_X, theme.RULE_STRONG, 0.8)
+    theme.draw_rule(canvas, theme.MARGIN_X, geo["rule_y"], theme.PAGE_W - theme.MARGIN_X,
+                     theme.RULE_STRONG, 0.8)
+    identity_table.drawOn(canvas, theme.MARGIN_X, geo["identity_top"] - identity_h)
 
-    identity_top = rule_y - theme.GAP_MD
-    identity_table.drawOn(canvas, theme.MARGIN_X, identity_top - identity_h)
-
-    student_top = identity_top - identity_h - theme.GAP_LG
-    return _draw_student_block(canvas, student_top) - theme.GAP_LG
+    _draw_student_block(canvas, geo)
 
 
 def _draw_running_header(canvas, school_info, page_num, total_pages):
@@ -296,9 +330,9 @@ def _draw_answer_box(canvas, x, y_top, width, height):
     canvas.restoreState()
 
 
-def _draw_question_block(canvas, block, x, y_top):
+def _draw_question_block(canvas, block, x, y_top, num_gutter, text_width, extra_box_h=0):
     cursor = y_top
-    text_x = x + NUM_GUTTER
+    text_x = x + num_gutter
 
     if block["tag_para"]:
         tag_h = block["tag_h"] - TAG_GAP
@@ -312,22 +346,34 @@ def _draw_question_block(canvas, block, x, y_top):
     block["para"].drawOn(canvas, text_x, cursor - block["text_h"])
     cursor -= block["text_h"] + TEXT_TO_BOX_GAP
 
-    _draw_answer_box(canvas, text_x, cursor, TEXT_WIDTH, ANSWER_BOX_H)
+    _draw_answer_box(canvas, text_x, cursor, text_width, ANSWER_BOX_H + extra_box_h)
+
+
+def _stretch_for_column(blocks_in_col, capacity):
+    """How much extra height each answer box in a packed column may grow so
+    the column reads flush with the bottom margin, capped so a sparsely
+    filled trailing column doesn't get one giant box."""
+    if not blocks_in_col:
+        return 0
+    used = sum(b["height"] for b in blocks_in_col)
+    leftover = capacity - used
+    if leftover <= 0:
+        return 0
+    return min(leftover / len(blocks_in_col), ANSWER_BOX_STRETCH_CAP)
 
 
 def generate_question_paper(filename, school_info, questions):
     os.makedirs(os.path.dirname(filename) or ".", exist_ok=True)
 
-    blocks = [_build_question(i, q) for i, q in enumerate(questions)]
+    num_gutter = _num_gutter_for(len(questions))
+    text_width = COL_WIDTH - num_gutter
+    blocks = [_build_question(i, q, text_width) for i, q in enumerate(questions)]
 
     identity_table = _make_identity_table(school_info)
     _, identity_h = identity_table.wrap(theme.CONTENT_W, 2000)
+    geo = _page1_chrome_geometry(identity_h)
 
-    top = theme.PAGE_H - 0.46 * inch
-    rule_y = top - theme.LOGO_H - 9
-    identity_top = rule_y - theme.GAP_MD
-    student_top = identity_top - identity_h - theme.GAP_LG
-    col_top_page1 = student_top - STUDENT_BLOCK_H - theme.GAP_LG
+    col_top_page1 = geo["col_top"]
     col_top_rest = theme.PAGE_H - RUNNING_HEADER_H
 
     first_col_h = col_top_page1 - theme.MARGIN_BOTTOM
@@ -341,17 +387,21 @@ def generate_question_paper(filename, school_info, questions):
     canvas = Canvas(filename, pagesize=(theme.PAGE_W, theme.PAGE_H))
     for page_index, page in enumerate(pages):
         if page_index == 0:
-            _draw_page1_header(canvas, school_info, identity_table, identity_h)
+            _draw_page1_header(canvas, identity_table, identity_h, geo)
             col_top = col_top_page1
+            capacity = first_col_h
         else:
             _draw_running_header(canvas, school_info, page_index + 1, total_pages)
             col_top = col_top_rest
+            capacity = rest_col_h
 
         for col in (0, 1):
+            col_blocks = page[col]
+            extra = _stretch_for_column(col_blocks, capacity)
             y = col_top
-            for block in page[col]:
-                _draw_question_block(canvas, block, col_x[col], y)
-                y -= block["height"]
+            for block in col_blocks:
+                _draw_question_block(canvas, block, col_x[col], y, num_gutter, text_width, extra)
+                y -= block["height"] + extra
 
         _draw_footer(canvas, page_index + 1, total_pages)
         canvas.showPage()
