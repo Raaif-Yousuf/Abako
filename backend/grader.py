@@ -4,6 +4,8 @@ import openpyxl
 
 from backend import config
 
+MAX_REPORTED_ERRORS = 25
+
 
 def validate_and_grade(filepath):
     try:
@@ -28,16 +30,20 @@ def validate_and_grade(filepath):
             q_num = int(row[0])
         except (ValueError, TypeError):
             continue
-        chapter = str(row[1])
+        raw_chapter = row[1] if len(row) > 1 else None
+        chapter = "Unknown" if raw_chapter is None or str(raw_chapter).strip() == "" else str(raw_chapter)
         topic_mapping[q_num] = chapter
 
     # Read Entry
     errors = []
     students_data = []
+    rows_read = 0
 
     for row_idx, row in enumerate(ws_entry.iter_rows(min_row=2, values_only=True), start=2):
         if not any(row):
-            break
+            # A stray blank row shouldn't truncate the rest of the class list.
+            continue
+        rows_read += 1
 
         student_id, name = row[0], row[1]
         if not student_id:
@@ -65,6 +71,10 @@ def validate_and_grade(filepath):
             })
 
     if errors:
+        if len(errors) > MAX_REPORTED_ERRORS:
+            suppressed = len(errors) - MAX_REPORTED_ERRORS
+            errors = errors[:MAX_REPORTED_ERRORS]
+            errors.append(f"...and {suppressed} more error(s) suppressed.")
         return {"success": False, "errors": errors}
 
     # Grade
@@ -150,5 +160,6 @@ def validate_and_grade(filepath):
     return {
         "success": True,
         "students": graded_students,
-        "tested_topics": list(set(topic_mapping.values()))
+        "tested_topics": list(set(topic_mapping.values())),
+        "rows_read": rows_read
     }
