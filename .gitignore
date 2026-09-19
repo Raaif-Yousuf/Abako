@@ -22,3 +22,6 @@ output/
 .DS_Store
 Thumbs.db
 .claude/
+.ruff_cache/
+.pytest_cache/
+.pytest-tmp/
