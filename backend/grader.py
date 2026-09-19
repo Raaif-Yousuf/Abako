@@ -141,17 +141,21 @@ def validate_and_grade(filepath):
         rank_for_score[score] = higher_count + 1
         higher_count += counts[score]
 
-    # Percentile rank = percentage of the cohort scoring strictly below this
-    # student's score, rounded to one decimal. Tied students always get the
-    # same percentile, and the top scorer approaches (but need not equal) 100.
+    # Percentile rank uses the midrank (mean rank) definition standard in
+    # educational measurement: percentile = (below + 0.5 * tied) / n * 100,
+    # where `below` is the number of students scoring strictly lower and
+    # `tied` is the number of students (including this one) on the same
+    # score. Tied students always get the same percentile, and an all-tied
+    # cohort lands at 50.0 rather than being told everyone is at the bottom.
     if n == 1:
         percentile_for_score = {graded_students[0]["final_score"]: 100.0}
     else:
         percentile_for_score = {}
         lower_count = 0
         for score in sorted(counts.keys()):
-            percentile_for_score[score] = round((lower_count / n) * 100, 1)
-            lower_count += counts[score]
+            tied = counts[score]
+            percentile_for_score[score] = round((lower_count + 0.5 * tied) / n * 100, 1)
+            lower_count += tied
 
     for s in graded_students:
         s["rank"] = rank_for_score[s["final_score"]]
