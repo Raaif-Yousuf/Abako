@@ -1,7 +1,24 @@
 node_modules/
 venv/
+.venv/
 __pycache__/
 *.pyc
 .env
 dist/
 build/
+
+# Electron / PyInstaller build artifacts
+resources/abako_sidecar/
+resources/abako_sidecar.exe
+*.spec
+
+# Generated exams, keys, entry sheets and reports
+output/
+
+# Editor / OS junk
+.idea/
+.vs/
+.vscode/
+.DS_Store
+Thumbs.db
+.claude/

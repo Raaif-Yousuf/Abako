@@ -1,11 +1,13 @@
+import io
 import os
 import re
-import io
+
 import matplotlib.pyplot as plt
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle, PageBreak
-from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import Image, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
 
 def create_bar_chart(topic_breakdown, all_topics):
     labels = []
@@ -29,7 +31,7 @@ def create_bar_chart(topic_breakdown, all_topics):
     ax.bar(labels, corrects, label='Correct', color='green')
     ax.bar(labels, incorrects, bottom=corrects, label='Incorrect', color='red')
 
-    bottom_u = [c + i for c, i in zip(corrects, incorrects)]
+    bottom_u = [c + i for c, i in zip(corrects, incorrects, strict=True)]
     ax.bar(labels, unattempted, bottom=bottom_u, label='Unattempted', color='gray')
 
     ax.set_ylabel('Questions')

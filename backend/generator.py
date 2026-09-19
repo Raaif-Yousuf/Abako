@@ -1,6 +1,9 @@
-import pandas as pd
 import random
+
+import pandas as pd
+
 from backend import config
+
 
 def select_questions(data_dict, selected_chapters, shuffle=True, chapter_allocations=None):
     """

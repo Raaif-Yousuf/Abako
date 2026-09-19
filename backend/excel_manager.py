@@ -1,7 +1,9 @@
 import os
+
 from openpyxl import Workbook
-from openpyxl.styles import PatternFill, Font
+from openpyxl.styles import Font, PatternFill
 from openpyxl.worksheet.datavalidation import DataValidation
+
 
 def generate_data_entry_sheet(filename, questions, school_name='', campus_name='', grade=''):
     os.makedirs(os.path.dirname(filename) or '.', exist_ok=True)

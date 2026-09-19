@@ -1,14 +1,14 @@
-import sys
-import os
 import json
-import socket
-import shutil
 import logging
+import os
+import shutil
+import socket
+import sys
 
 # Ensure project root is in path when invoked as `python backend/main.py`
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from flask import Flask, request, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 # Silence Werkzeug so only our startup line goes to stdout
@@ -18,13 +18,13 @@ logging.getLogger("werkzeug").handlers = []
 app = Flask(__name__)
 CORS(app)
 
-from backend.config import QUESTION_BANK_PATH, OUTPUT_BASE_PATH
-from backend.generator import generate_from_excel
-from backend.pdf_manager import generate_question_paper, generate_answer_key
-from backend.excel_manager import generate_data_entry_sheet
-from backend.grader import validate_and_grade
-from backend.reporter import generate_all_reports
+from backend.config import OUTPUT_BASE_PATH, QUESTION_BANK_PATH
 from backend.demo_manager import run_demo
+from backend.excel_manager import generate_data_entry_sheet
+from backend.generator import generate_from_excel
+from backend.grader import validate_and_grade
+from backend.pdf_manager import generate_answer_key, generate_question_paper
+from backend.reporter import generate_all_reports
 
 
 def _find_free_port():
