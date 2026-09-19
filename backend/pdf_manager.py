@@ -1,8 +1,17 @@
 import os
+
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import BaseDocTemplate, PageTemplate, Frame, Paragraph, Spacer, SimpleDocTemplate, Image
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
+from reportlab.platypus import (
+    BaseDocTemplate,
+    Frame,
+    Image,
+    PageTemplate,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+)
 
 _LOGO_W = 180
 _LOGO_H = 50

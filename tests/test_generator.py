@@ -1,8 +1,11 @@
 import random
-import pytest
+
 import numpy as np
 import pandas as pd
+import pytest
+
 from backend.generator import select_questions
+
 
 def test_select_questions_equal_division():
     # 3 chapters, should get 20 each
@@ -13,17 +16,17 @@ def test_select_questions_equal_division():
         "Chapter D": pd.DataFrame({"Question_ID": [f"D_{i}" for i in range(30)]}), # Unselected
         "Filler": pd.DataFrame({"Question_ID": [f"Filler_{i}" for i in range(50)]})
     }
-    
+
     questions = select_questions(data_dict, ["Chapter A", "Chapter B", "Chapter C"])
     assert len(questions) == 60
-    
+
     # Count occurrences
     a_count = sum(1 for q in questions if q["Question_ID"].startswith("A_"))
     b_count = sum(1 for q in questions if q["Question_ID"].startswith("B_"))
     c_count = sum(1 for q in questions if q["Question_ID"].startswith("C_"))
     f_count = sum(1 for q in questions if q["Question_ID"].startswith("Filler_"))
     d_count = sum(1 for q in questions if q["Question_ID"].startswith("D_"))
-    
+
     assert a_count == 20
     assert b_count == 20
     assert c_count == 20
@@ -41,14 +44,14 @@ def test_select_questions_shortage_and_indivisible():
     # Add Chapter B through G with plenty of questions
     for letter in ['B', 'C', 'D', 'E', 'F', 'G']:
         data_dict[f"Chapter {letter}"] = pd.DataFrame({"Question_ID": [f"{letter}_{i}" for i in range(20)]})
-        
-    selected = [f"Chapter {l}" for l in ['A', 'B', 'C', 'D', 'E', 'F', 'G']]
+
+    selected = [f"Chapter {name}" for name in ['A', 'B', 'C', 'D', 'E', 'F', 'G']]
     questions = select_questions(data_dict, selected)
-    
+
     assert len(questions) == 60
     a_count = sum(1 for q in questions if q["Question_ID"].startswith("A_"))
     f_count = sum(1 for q in questions if q["Question_ID"].startswith("Filler_"))
-    
+
     assert a_count == 5
     assert f_count == 7
 

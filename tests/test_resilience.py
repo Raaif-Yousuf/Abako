@@ -1,6 +1,9 @@
 import os
+
 import openpyxl
+
 from backend.grader import validate_and_grade
+
 
 def test_corrupted_excel():
     filename = "corrupted.xlsx"
@@ -8,7 +11,7 @@ def test_corrupted_excel():
         f.write("This is completely invalid data.")
 
     res = validate_and_grade(filename)
-    assert res["success"] == False
+    assert not res["success"]
     assert any("Failed to open Excel file" in e for e in res["errors"])
     os.remove(filename)
 
@@ -24,7 +27,7 @@ def test_schema_mismatch():
     wb.save(filename)
 
     res = validate_and_grade(filename)
-    assert res["success"] == False
+    assert not res["success"]
     assert any("Missing columns" in e for e in res["errors"])
     os.remove(filename)
 
@@ -32,7 +35,8 @@ def test_extreme_data():
     filename_1 = "extreme_1.xlsx"
     wb = openpyxl.Workbook()
     ws_meta = wb.create_sheet("Metadata")
-    for i in range(1, 61): ws_meta.append([i, "Algebra", "A"])
+    for i in range(1, 61):
+        ws_meta.append([i, "Algebra", "A"])
     ws_entry = wb.create_sheet("Entry")
     ws_entry.append(["Student ID", "Name", "Date of Birth"] + [f"Q{i}" for i in range(1, 61)])
 
@@ -40,7 +44,7 @@ def test_extreme_data():
     ws_entry.append(["S1", "Alice", "2010-01-01"] + ["A - Correct"] * 60)
     wb.save(filename_1)
     res1 = validate_and_grade(filename_1)
-    assert res1["success"] == True
+    assert res1["success"]
     assert res1["students"][0]["percentile"] == 100.0
     os.remove(filename_1)
 
@@ -48,7 +52,8 @@ def test_extreme_data():
     filename_1000 = "extreme_1000.xlsx"
     wb2 = openpyxl.Workbook()
     wb2.create_sheet("Metadata")
-    for i in range(1, 61): wb2["Metadata"].append([i, "Algebra", "A"])
+    for i in range(1, 61):
+        wb2["Metadata"].append([i, "Algebra", "A"])
     ws2 = wb2.create_sheet("Entry")
     ws2.append(["Student ID", "Name", "Date of Birth"] + [f"Q{i}" for i in range(1, 61)])
 
@@ -57,6 +62,6 @@ def test_extreme_data():
     wb2.save(filename_1000)
 
     res2 = validate_and_grade(filename_1000)
-    assert res2["success"] == True
+    assert res2["success"]
     assert len(res2["students"]) == 1000
     os.remove(filename_1000)

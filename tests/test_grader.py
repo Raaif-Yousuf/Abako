@@ -1,7 +1,10 @@
 import os
+
 import openpyxl
-from backend.grader import validate_and_grade
+
 from backend import config
+from backend.grader import validate_and_grade
+
 
 def test_grader():
     wb = openpyxl.Workbook()
@@ -26,7 +29,7 @@ def test_grader():
     wb.save(temp_file)
 
     res = validate_and_grade(temp_file)
-    assert res["success"] == False
+    assert not res["success"]
     assert any("Row 4: Q5 is blank" in err for err in res["errors"])
 
     # Fix the blank error
@@ -34,7 +37,7 @@ def test_grader():
     wb.save(temp_file)
 
     res = validate_and_grade(temp_file)
-    assert res["success"] == True
+    assert res["success"]
 
     students = res["students"]
     assert len(students) == 3
