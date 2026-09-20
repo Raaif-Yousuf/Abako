@@ -19,6 +19,7 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import inch
+from reportlab.platypus import Paragraph
 
 # --------------------------------------------------------------------------
 # Palette
@@ -110,6 +111,11 @@ def styles():
         "display": _s("display", fontName=SANS_BOLD, fontSize=SIZE_DISPLAY,
                       leading=SIZE_DISPLAY * 1.05, alignment=TA_CENTER,
                       textColor=CHARCOAL),
+        # A student's name at the top of the report card: big, left-aligned,
+        # confident, but a notch below "display" so it never competes with
+        # the score.
+        "name": _s("name", fontName=SANS_BOLD, fontSize=22, leading=25,
+                   textColor=CHARCOAL),
         # Page title.
         "h1": _s("h1", fontName=SANS_BOLD, fontSize=SIZE_H1, textColor=CHARCOAL,
                  spaceAfter=GAP_XS),
@@ -181,6 +187,42 @@ def draw_rule(canvas, x1, y, x2, color=RULE, width=0.6):
     canvas.setLineWidth(width)
     canvas.line(x1, y, x2, y)
     canvas.restoreState()
+
+
+RADIUS = 5  # corner radius for panels and stat tiles
+
+
+def draw_rounded_panel(canvas, x, y, w, h, fill=PANEL, stroke=None, radius=RADIUS):
+    """A soft rounded-rect panel - the fill used behind stat tiles and cards."""
+    canvas.saveState()
+    canvas.setFillColor(fill)
+    if stroke:
+        canvas.setStrokeColor(stroke)
+        canvas.setLineWidth(0.6)
+        canvas.roundRect(x, y, w, h, radius, fill=1, stroke=1)
+    else:
+        canvas.roundRect(x, y, w, h, radius, fill=1, stroke=0)
+    canvas.restoreState()
+
+
+def draw_stat_tile(canvas, x, y, w, h, label, value, value_color=None,
+                   value_size=SIZE_H1):
+    """A rounded panel with a big numeral and a small-caps label beneath it.
+
+    Used for the report card's score/percentile/rank/average row and for the
+    school report's class-summary row.
+    """
+    draw_rounded_panel(canvas, x, y, w, h)
+    canvas.saveState()
+    canvas.setFont(SANS_BOLD, value_size)
+    canvas.setFillColor(value_color or CHARCOAL)
+    canvas.drawCentredString(x + w / 2, y + h - value_size - 2, str(value))
+    canvas.restoreState()
+
+    label_style = styles()["eyebrow"].clone("_tile_label", alignment=TA_CENTER)
+    p = Paragraph(letterspace(label), label_style)
+    p.wrap(w - 8, h)
+    p.drawOn(canvas, x + 4, y + 9)
 
 
 def draw_page_furniture(canvas, doc, title, context_line, footer_note=None,
