@@ -481,27 +481,30 @@ def _draw_report_card(c, student, school_info, all_topics, class_avg, demo=False
 # --------------------------------------------------------------------------
 
 def _draw_seal(c, cx, cy, r):
+    """A vector seal - concentric rings, a rosette of ticks, and lettering
+    that all scale with r, so a bigger seal reads as one solid medallion
+    rather than a small logo lost inside an oversized ring."""
     year = datetime.date.today().year
     c.saveState()
     for i, rr in enumerate((r, r * 0.82, r * 0.66)):
         c.setStrokeColor(theme.GOLD)
-        c.setLineWidth(1.1 if i == 0 else 0.6)
+        c.setLineWidth(1.4 if i == 0 else 0.7)
         c.circle(cx, cy, rr, fill=0, stroke=1)
-    n = 28
+    n = 30
     for i in range(n):
         ang = 2 * math.pi * i / n
         x1 = cx + math.cos(ang) * r * 0.66
         y1 = cy + math.sin(ang) * r * 0.66
-        x2 = cx + math.cos(ang) * r * 0.58
-        y2 = cy + math.sin(ang) * r * 0.58
+        x2 = cx + math.cos(ang) * r * 0.57
+        y2 = cy + math.sin(ang) * r * 0.57
         c.setStrokeColor(theme.GOLD)
-        c.setLineWidth(0.6)
+        c.setLineWidth(0.7)
         c.line(x1, y1, x2, y2)
     c.setFillColor(theme.GOLD)
-    c.setFont(theme.SERIF_BOLD, 11)
-    c.drawCentredString(cx, cy + 3, "ABAKO")
-    c.setFont(theme.SERIF, 8)
-    c.drawCentredString(cx, cy - 10, str(year))
+    c.setFont(theme.SERIF_BOLD, r * 0.26)
+    c.drawCentredString(cx, cy + r * 0.07, "ABAKO")
+    c.setFont(theme.SERIF, r * 0.19)
+    c.drawCentredString(cx, cy - r * 0.24, str(year))
     c.restoreState()
 
 
@@ -537,8 +540,61 @@ def _draw_certificate(c, student, school_info, demo=False):
 
     styles = theme.styles()
     cx = theme.PAGE_W / 2
-    y = theme.PAGE_H - inner - 0.7 * inch
+    text_w = theme.PAGE_W - 2 * inner
 
+    percentile = student.get("percentile", 0)
+    rank = student.get("rank") or 999
+    achievement = percentile >= 90 or rank <= 10
+    title_text = "Certificate of Achievement" if achievement else "Certificate of Participation"
+    exam_date = school_info.get("Exam Date", "—")
+    school = school_info.get("School Name", "—")
+    grade = school_info.get("Grade", "—")
+    verb = "outstanding performance in" if achievement else "participation in"
+    body_text = (f"For {verb} the Abako National Math Competition, representing "
+               f"{_esc(str(school))}, {_esc(str(grade))}, on {_esc(str(exam_date))}.")
+
+    title_par = Paragraph(title_text, styles["cert_title"])
+    # A tracked small-caps kicker line, sized to support the name below
+    # rather than read as a stray sentence under the title above it.
+    kicker_par = Paragraph(theme.letterspace("this certificate is proudly presented to"),
+                          styles["cert_eyebrow"])
+    name_par = Paragraph(_esc(str(student.get("name", ""))), styles["cert_name"])
+    body_par = Paragraph(body_text, styles["cert_body"])
+
+    _, title_h = title_par.wrap(text_w, theme.PAGE_H)
+    _, kicker_h = kicker_par.wrap(text_w, theme.PAGE_H)
+    _, name_h = name_par.wrap(text_w, theme.PAGE_H)
+    _, body_h = body_par.wrap(5.2 * inch, theme.PAGE_H)
+
+    competition_h = (theme.SIZE_SMALL + 1) * theme.LEADING
+    seal_r = 0.9 * inch
+    seal_gap = 0.32 * inch
+    sig_gap = 0.4 * inch
+    sig_text_h = 17
+
+    # The seal is a centrepiece, not an afterthought, and sits close under
+    # the citation instead of floating in a void; the signatures sit a
+    # matching distance below it. The whole block is then centred as a unit
+    # within the bordered frame, instead of hanging from a fixed top offset
+    # and leaving the lower frame empty.
+    content_h = (
+        theme.LOGO_H + theme.GAP_LG + competition_h + theme.GAP_XL
+        + title_h + theme.GAP_MD
+        + kicker_h + theme.GAP_MD
+        + name_h + 6
+        + theme.GAP_LG
+        + body_h
+        + seal_gap + seal_r * 2
+        + sig_gap + sig_text_h
+    )
+    frame_top = theme.PAGE_H - inner
+    frame_bottom = inner
+    content_top = frame_bottom + (frame_top - frame_bottom + content_h) / 2
+    # A very short certificate should still look anchored under the border,
+    # not simply floating dead-centre with an oversized top margin.
+    content_top = min(content_top, frame_top - 0.6 * inch)
+
+    y = content_top
     theme.draw_wordmark(c, cx - theme.LOGO_W / 2, y - theme.LOGO_H)
     y -= theme.LOGO_H + theme.GAP_LG
 
@@ -547,20 +603,9 @@ def _draw_certificate(c, student, school_info, demo=False):
     c.drawCentredString(cx, y, "ABAKO NATIONAL MATH COMPETITION")
     y -= theme.GAP_XL
 
-    percentile = student.get("percentile", 0)
-    rank = student.get("rank") or 999
-    achievement = percentile >= 90 or rank <= 10
-    title_text = "Certificate of Achievement" if achievement else "Certificate of Participation"
-    y = _flow(c, Paragraph(title_text, styles["cert_title"]), inner, y,
-             theme.PAGE_W - 2 * inner, gap_after=theme.GAP_MD)
-
-    c.setFont(theme.SERIF_ITALIC, theme.SIZE_BODY)
-    c.setFillColor(theme.SLATE)
-    c.drawCentredString(cx, y, "this certificate is proudly presented to")
-    y -= theme.GAP_XL
-
-    y = _flow(c, Paragraph(_esc(str(student.get("name", ""))), styles["cert_name"]),
-             inner, y, theme.PAGE_W - 2 * inner, gap_after=6)
+    y = _flow(c, title_par, inner, y, text_w, gap_after=theme.GAP_MD)
+    y = _flow(c, kicker_par, inner, y, text_w, gap_after=theme.GAP_MD)
+    y = _flow(c, name_par, inner, y, text_w, gap_after=6)
 
     c.setStrokeColor(theme.GOLD)
     c.setLineWidth(0.8)
@@ -568,28 +613,12 @@ def _draw_certificate(c, student, school_info, demo=False):
     c.line(cx - rule_w / 2, y, cx + rule_w / 2, y)
     y -= theme.GAP_LG
 
-    exam_date = school_info.get("Exam Date", "—")
-    school = school_info.get("School Name", "—")
-    grade = school_info.get("Grade", "—")
-    verb = "outstanding performance in" if achievement else "participation in"
-    body_text = (f"For {verb} the Abako National Math Competition, representing "
-               f"{_esc(str(school))}, {_esc(str(grade))}, on {_esc(str(exam_date))}.")
-    y = _flow(c, Paragraph(body_text, styles["cert_body"]), cx - 2.6 * inch, y,
-             5.2 * inch, gap_after=0)
+    y = _flow(c, body_par, cx - 2.6 * inch, y, 5.2 * inch, gap_after=0)
 
-    # The seal sits in the middle of whatever space is left above the
-    # signatures, instead of hugging the body text - on a short certificate
-    # (no achievement clause, a short school name) that space can be
-    # generous, and a seal glued to the paragraph above looks like an
-    # afterthought rather than a centrepiece.
-    sig_y = inner + 0.85 * inch
-    seal_r = 0.62 * inch
-    sig_clear = sig_y + 0.55 * inch
-    seal_cy = (y + sig_clear) / 2
-    seal_cy = min(seal_cy, y - seal_r - 12)
-    seal_cy = max(seal_cy, sig_clear + seal_r)
+    seal_cy = y - seal_gap - seal_r
     _draw_seal(c, cx, seal_cy, seal_r)
 
+    sig_y = seal_cy - seal_r - sig_gap
     _draw_signature(c, inner + 1.5 * inch, sig_y, "Competition Director")
     _draw_signature(c, theme.PAGE_W - inner - 1.5 * inch, sig_y, "Head of Mathematics")
 
@@ -669,6 +698,23 @@ def generate_school_report(students, school_info, all_topics, output_path, demo=
     width = theme.CONTENT_W
     cursor = theme.PAGE_H - theme.MARGIN_TOP
     styles = theme.styles()
+
+    # An identity block, the same shape as the one on the report card - the
+    # school report should name the school on its face, not only in the
+    # running footer.
+    school_name = str(school_info.get("School Name", "—"))
+    name_style = _name_style(school_name, styles["name"])
+    cursor = _flow(c, Paragraph(_esc(school_name), name_style), x0, cursor,
+                  width * 0.7, gap_after=theme.GAP_SM)
+
+    meta_items = [
+        ("Campus", school_info.get("Campus", "—")),
+        ("Grade", school_info.get("Grade", "—")),
+        ("Exam Date", school_info.get("Exam Date", "—")),
+        ("Students", str(len(students))),
+    ]
+    cursor = _draw_meta_row(c, x0, cursor, width, meta_items)
+    cursor -= theme.GAP_MD
 
     if not students:
         c.setFont(theme.SANS, theme.SIZE_BODY)
