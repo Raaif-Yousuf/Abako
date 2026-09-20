@@ -188,7 +188,8 @@ def draw_wordmark(canvas, x, y, width=LOGO_W, height=LOGO_H, logo_path=None):
     import os
 
     if logo_path is None:
-        logo_path = os.path.join("resources", "abako_logo.png")
+        from backend.config import _bundle_dir
+        logo_path = os.path.join(_bundle_dir(), "resources", "abako_logo.png")
     if os.path.exists(logo_path):
         canvas.drawImage(logo_path, x, y, width=width, height=height,
                          preserveAspectRatio=True, anchor="sw", mask="auto")
