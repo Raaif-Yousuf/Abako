@@ -11,6 +11,18 @@ from backend.grader import validate_and_grade
 from backend.pdf_manager import generate_answer_key, generate_question_paper
 from backend.reporter import generate_all_reports
 
+# Fictional demo roster, mixing Middle Eastern and Western names. Purely
+# cosmetic - grading and ranking are keyed on student_id/final_score, never
+# on name - but a real-looking name reads far better in a sample report
+# than a bare placeholder.
+DEMO_STUDENT_NAMES = [
+    "Omar Haddad", "Layla Nasser", "Yusuf Karim", "Amira Saleh",
+    "Zaid Mansour", "Nadia Rahman", "Hassan Qureshi", "Sara Aziz",
+    "Emma Whitfield", "Daniel Brooks", "Grace Sullivan", "Noah Bennett",
+    "Khalid Farouk", "Mariam Idris", "Tariq Aziz", "Leila Haddad",
+    "Samuel Whitfield", "Olivia Bennett", "Yasmin Karim", "Ibrahim Nasser",
+]
+
 
 def run_demo():
     try:
@@ -69,7 +81,7 @@ def run_demo():
                 random.choices(opts, weights=[0.6, 0.3, 0.1], k=1)[0]
                 for opts in options
             ]
-            ws.append([f"S{i:03d}", f"Demo Student {i}", "2010-01-01"] + row)
+            ws.append([f"S{i:03d}", DEMO_STUDENT_NAMES[i - 1], "2010-01-01"] + row)
         wb.save(e_xlsx)
 
         result = validate_and_grade(e_xlsx)

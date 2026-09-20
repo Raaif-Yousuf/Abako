@@ -72,9 +72,10 @@ def test_demo_entry_values_match_the_dropdowns(demo):
 def test_demo_produces_one_report_per_student(demo):
     assert demo["success"], demo.get("errors")
     produced = []
+    indiv_dir = os.path.join(demo["output_dir"], "Individual_Reports")
     for _root, _dirs, files in os.walk(demo["output_dir"]):
         produced += [f for f in files if f.endswith(".pdf")]
     assert "Question_Paper.pdf" in produced
     assert "Answer_Key.pdf" in produced
     assert "School_Report.pdf" in produced
-    assert sum(1 for f in produced if f.startswith("Demo_Student_")) == 20
+    assert len(os.listdir(indiv_dir)) == 20

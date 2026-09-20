@@ -64,7 +64,7 @@ def _student(name, student_id, final_score, percentile, rank, pct=70, topics=TOP
 
 
 def test_individual_report_has_two_pages_with_name_and_score(tmp_path):
-    student = _student("Demo Student One", "S001", 42, 88.0, 2)
+    student = _student("Omar Haddad", "S001", 42, 88.0, 2)
     out = tmp_path / "report.pdf"
     generate_individual_report(student, SCHOOL_INFO, TOPICS, 30.0, str(out))
 
@@ -75,12 +75,12 @@ def test_individual_report_has_two_pages_with_name_and_score(tmp_path):
     assert len(reader.pages) == 2
 
     text = "\n".join(page.extract_text() or "" for page in reader.pages)
-    assert "Demo Student One" in text
+    assert "Omar Haddad" in text
     assert "42" in text
 
 
 def test_individual_report_zero_score_student(tmp_path):
-    student = _student("Zero Scorer", "S002", 0, 0.0, None, pct=5)
+    student = _student("Layla Nasser", "S002", 0, 0.0, None, pct=5)
     out = tmp_path / "zero.pdf"
     generate_individual_report(student, SCHOOL_INFO, TOPICS, 20.0, str(out))
 
@@ -90,7 +90,7 @@ def test_individual_report_zero_score_student(tmp_path):
 
 
 def test_individual_report_single_student_cohort(tmp_path):
-    student = _student("Solo Student", "S900", 40, 100.0, 1)
+    student = _student("Yusuf Karim", "S900", 40, 100.0, 1)
     out = tmp_path / "solo.pdf"
     generate_individual_report(student, SCHOOL_INFO, TOPICS, 40.0, str(out))
 
@@ -100,7 +100,7 @@ def test_individual_report_single_student_cohort(tmp_path):
 
 
 def test_individual_report_nine_topics_long_names(tmp_path):
-    student = _student("Cohort Student", "S501", 35, 75.0, 3, topics=LONG_TOPICS)
+    student = _student("Amira Saleh", "S501", 35, 75.0, 3, topics=LONG_TOPICS)
     out = tmp_path / "nine_topics.pdf"
     generate_individual_report(student, SCHOOL_INFO, LONG_TOPICS, 28.0, str(out))
 
@@ -111,9 +111,9 @@ def test_individual_report_nine_topics_long_names(tmp_path):
 
 def test_school_report_renders(tmp_path):
     students = [
-        _student("Top Student", "S001", 55, 96.0, 1),
-        _student("Mid Student", "S002", 30, 50.0, 2),
-        _student("Low Student", "S003", 5, 4.0, 3, pct=10),
+        _student("Zaid Mansour", "S001", 55, 96.0, 1),
+        _student("Nadia Rahman", "S002", 30, 50.0, 2),
+        _student("Hassan Qureshi", "S003", 5, 4.0, 3, pct=10),
     ]
     out = tmp_path / "school.pdf"
     generate_school_report(students, SCHOOL_INFO, TOPICS, str(out))

@@ -44,6 +44,14 @@ LONG_TOPICS = [
     "Advanced Sequences and Series for Competition Mathematics",
 ]
 
+# Fictional names only, mixing Middle Eastern and Western - never the
+# client's actual student data.
+FILLER_NAMES = [
+    "Khalid Farouk", "Mariam Idris", "Tariq Aziz", "Leila Haddad",
+    "Samuel Whitfield", "Olivia Bennett", "Yasmin Karim", "Ibrahim Nasser",
+    "Layla Nasser", "Daniel Brooks", "Nadia Rahman", "Hassan Qureshi",
+]
+
 
 def _make_student(student_id, name, topics, topic_pcts, totals=None):
     if totals is None:
@@ -90,19 +98,19 @@ def _rank_and_percentile(students):
 def _build_main_cohort():
     rng = random.Random(42)
     students = [
-        _make_student("S001", "Aarav Sharma", MAIN_TOPICS, [96, 92, 90, 94, 88, 91]),
+        _make_student("S001", "Omar Haddad", MAIN_TOPICS, [96, 92, 90, 94, 88, 91]),
         _make_student("S002", "Zainab Al-Farouq", MAIN_TOPICS, [8, 5, 10, 8, 5, 6]),
-        _make_student("S003", "Priya Venkataraman-Subramaniam of the Riyadh International Campus",
+        _make_student("S003", "Amira Saleh Al-Mansouri-Whitfield of the Riyadh International Campus",
                      MAIN_TOPICS, [64, 58, 70, 55, 60, 62]),
     ]
     for i in range(4, 16):
         pcts = [rng.randint(20, 95) for _ in MAIN_TOPICS]
-        students.append(_make_student(f"S{i:03d}", f"Demo Student {i}", MAIN_TOPICS, pcts))
+        students.append(_make_student(f"S{i:03d}", FILLER_NAMES[i % len(FILLER_NAMES)], MAIN_TOPICS, pcts))
     return _rank_and_percentile(students)
 
 
 def _build_solo_cohort():
-    student = _make_student("S901", "Solo Student", MAIN_TOPICS, [78, 74, 80, 70, 76, 72])
+    student = _make_student("S901", "Yusuf Karim", MAIN_TOPICS, [78, 74, 80, 70, 76, 72])
     return _rank_and_percentile([student])
 
 
@@ -110,12 +118,12 @@ def _build_long_topic_cohort():
     rng = random.Random(7)
     totals = [7, 7, 6, 7, 6, 6, 7, 7, 7]  # sums to 60
     students = [
-        _make_student("S501", "Chen Wei", LONG_TOPICS,
+        _make_student("S501", "Zaid Mansour", LONG_TOPICS,
                      [70, 55, 80, 60, 40, 65, 58, 72, 50], totals=totals),
     ]
     for i in range(2, 10):
         pcts = [rng.randint(15, 90) for _ in LONG_TOPICS]
-        students.append(_make_student(f"S5{i:02d}", f"Cohort Student {i}", LONG_TOPICS, pcts, totals=totals))
+        students.append(_make_student(f"S5{i:02d}", FILLER_NAMES[i % len(FILLER_NAMES)], LONG_TOPICS, pcts, totals=totals))
     return _rank_and_percentile(students)
 
 
