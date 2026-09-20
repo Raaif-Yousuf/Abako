@@ -157,22 +157,25 @@ class _ScoreBar(Flowable):
     def draw(self):
         c = self.canv
         bar_w = self.width - 30
+        weak = self.pct < 33
         c.saveState()
         c.setFillColor(theme.PANEL_DEEP)
         c.roundRect(0, 0, bar_w, self.height, self.height / 2, fill=1, stroke=0)
         fill_w = bar_w * self.pct / 100.0
         if fill_w > 0:
             if self.pct >= 66:
-                color = theme.CORRECT
+                color = theme.SCORE_STRONG
             elif self.pct >= 33:
-                color = theme.GOLD
+                color = theme.SCORE_MID
             else:
-                color = theme.INCORRECT
+                color = theme.SCORE_WEAK
             c.setFillColor(color)
             c.roundRect(0, 0, max(fill_w, self.height), self.height,
                        self.height / 2, fill=1, stroke=0)
+        # A weak score gets brand red *and* bold weight - a topic that needs
+        # attention should stand out by more than hue alone.
         c.setFont(theme.SANS_BOLD, theme.SIZE_SMALL)
-        c.setFillColor(theme.SLATE)
+        c.setFillColor(theme.SCORE_WEAK if weak else theme.SLATE)
         c.drawRightString(self.width, self.height / 2 - 3, f"{self.pct:.0f}%")
         c.restoreState()
 
@@ -323,7 +326,7 @@ def _draw_score_track(c, x, y_top, width, student_score, class_avg, percentile,
     return y_bottom
 
 
-def _topic_table_style(n_rows):
+def _topic_table_style(n_rows, emphasize_col=None):
     cmds = [
         ("BACKGROUND", (0, 0), (-1, 0), theme.CHARCOAL),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
@@ -336,6 +339,11 @@ def _topic_table_style(n_rows):
     ]
     for r in range(1, n_rows - 1):
         cmds.append(("LINEBELOW", (0, r), (-1, r), 0.5, theme.RULE))
+    if emphasize_col is not None:
+        # The Score column is the headline number in this table - a brand
+        # red header cell (not another grey) draws the eye to it, the same
+        # way theme.RED_DEEP marks the one number that matters elsewhere.
+        cmds.append(("BACKGROUND", (emphasize_col, 0), (emphasize_col, 0), theme.RED_DEEP))
     return TableStyle(cmds)
 
 
@@ -373,7 +381,7 @@ def _build_topic_table(all_topics, topic_breakdown, width):
             ])
 
     tbl = Table(data, colWidths=col_w, repeatRows=1)
-    tbl.setStyle(_topic_table_style(len(data)))
+    tbl.setStyle(_topic_table_style(len(data), emphasize_col=4))
     return tbl
 
 

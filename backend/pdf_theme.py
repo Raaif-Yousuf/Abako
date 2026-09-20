@@ -65,6 +65,14 @@ HATCH_CORRECT = ""
 HATCH_INCORRECT = "//"
 HATCH_UNATTEMPTED = ".."
 
+# Topic-breakdown score tiers (the little bar in the "Score" column). Brand
+# red calls out a topic that needs attention; the two calmer tiers are
+# greys from the same house palette - no green or gold standing in for a
+# semantic that belongs to the house colours.
+SCORE_STRONG = CHARCOAL
+SCORE_MID = SLATE
+SCORE_WEAK = RED_DEEP
+
 # --------------------------------------------------------------------------
 # Type
 # --------------------------------------------------------------------------
