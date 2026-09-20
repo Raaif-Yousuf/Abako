@@ -8,6 +8,20 @@ let mainWindow;
 let pythonProcess;
 let flaskPort = null;
 
+// Real, writable folder for generated PDFs/reports. In a packaged portable
+// build __dirname points inside app.asar (a file, not a directory), so we
+// anchor on the exe's own location instead: PORTABLE_EXECUTABLE_DIR is the
+// folder the user launched the portable exe from, with app.getPath('exe')'s
+// directory as a fallback for non-portable packaging. The Python side reads
+// this same value via ABAKO_OUTPUT_DIR so both sides agree on one folder.
+function getOutputDir() {
+  if (app.isPackaged) {
+    const exeDir = process.env.PORTABLE_EXECUTABLE_DIR || path.dirname(app.getPath('exe'));
+    return path.join(exeDir, 'output');
+  }
+  return path.join(__dirname, 'output');
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -24,7 +38,7 @@ function createWindow() {
 }
 
 function buildMenu() {
-  const outputPath = path.join(__dirname, 'output');
+  const outputPath = getOutputDir();
   const template = [
     {
       label: 'File',
@@ -98,10 +112,13 @@ async function waitForBackend(port, maxMs = 10000) {
 
 // Spawns a process, resolves with the Flask port from its first stdout line.
 // If the spawn errors and a fallback is provided, retries with the fallback.
-function spawnBackend(command, args, fallback) {
-  console.log(`[spawnBackend] running: ${command} ${args.join(' ')}`);
+function spawnBackend(command, args, fallback, cwd) {
+  console.log(`[spawnBackend] running: ${command} ${args.join(' ')} (cwd: ${cwd})`);
   return new Promise((resolve, reject) => {
-    const proc = spawn(command, args, { cwd: __dirname });
+    const proc = spawn(command, args, {
+      cwd,
+      env: { ...process.env, ABAKO_OUTPUT_DIR: getOutputDir() }
+    });
     let buf = '';
     let settled = false;
 
@@ -133,7 +150,7 @@ function spawnBackend(command, args, fallback) {
       settled = true;
       if (fallback) {
         console.log(`[main] ${command} failed (${err.message}), falling back to ${fallback.command}`);
-        spawnBackend(fallback.command, fallback.args, null).then(resolve).catch(reject);
+        spawnBackend(fallback.command, fallback.args, null, fallback.cwd).then(resolve).catch(reject);
       } else {
         reject(err);
       }
@@ -151,8 +168,11 @@ function spawnBackend(command, args, fallback) {
 
 function startPythonProcess() {
   if (app.isPackaged) {
-    const sidecar = path.join(process.resourcesPath, 'resources', 'abako_sidecar', 'abako_sidecar.exe');
-    return spawnBackend(sidecar, [], null);
+    // __dirname is inside app.asar (a file, not a directory) in a packaged
+    // build, so spawn the sidecar with its own folder as cwd, not __dirname.
+    const sidecarDir = path.join(process.resourcesPath, 'resources', 'abako_sidecar');
+    const sidecar = path.join(sidecarDir, 'abako_sidecar.exe');
+    return spawnBackend(sidecar, [], null, sidecarDir);
   }
 
   const backendScript = path.join(__dirname, 'backend', 'main.py');
@@ -162,14 +182,16 @@ function startPythonProcess() {
   ];
   const venvPython = venvCandidates.find(fs.existsSync);
   const sidecarDev = path.join(__dirname, 'resources', 'abako_sidecar', 'abako_sidecar.exe');
-  const fallback = fs.existsSync(sidecarDev) ? { command: sidecarDev, args: [] } : null;
+  const fallback = fs.existsSync(sidecarDev)
+    ? { command: sidecarDev, args: [], cwd: path.dirname(sidecarDev) }
+    : null;
 
   // Prefer the project venv so Flask and all deps are guaranteed available
   const pythonCmd = venvPython || 'python';
   console.log(`[main] startPythonProcess: using Python at "${pythonCmd}"`);
   console.log(`[main] startPythonProcess: backend script at "${backendScript}"`);
 
-  return spawnBackend(pythonCmd, [backendScript], fallback);
+  return spawnBackend(pythonCmd, [backendScript], fallback, __dirname);
 }
 
 app.whenReady().then(async () => {
@@ -180,6 +202,12 @@ app.whenReady().then(async () => {
     console.log(`[main] Flask backend confirmed ready on port ${flaskPort}`);
   } catch (err) {
     console.error('[main] Failed to start backend:', err.message);
+    // A dead backend used to leave a silent, unresponsive window with no
+    // way for the user to know why nothing works. Tell them.
+    dialog.showErrorBox(
+      'Abako Competition Suite',
+      `The backend failed to start, so exam generation and grading will not work.\n\n${err.message}`
+    );
   }
 
   buildMenu();
