@@ -41,18 +41,29 @@ PANEL = colors.HexColor("#F4F5F7")     # light fill behind stat blocks
 PANEL_DEEP = colors.HexColor("#E9EBEF")
 PAPER = colors.white
 
-# Performance semantics, reused by charts and tables alike.
-CORRECT = colors.HexColor("#2F7D63")
+# Answer-state semantics, reused by the topic chart and table alike.
+# Correct is black (not green - a colour-blind reader and a black-and-white
+# printout both need to tell these three states apart from weight/marks,
+# not hue alone; see apply_answer_hatches below), wrong is brand red, and
+# unattempted is neutral grey.
+CORRECT = colors.HexColor("#1A1A1C")
 INCORRECT = colors.HexColor("#EB3238")
 UNATTEMPTED = colors.HexColor("#B9BDC6")
 
 # Matplotlib needs plain hex strings.
-CHART_CORRECT = "#2F7D63"
+CHART_CORRECT = "#1A1A1C"
 CHART_INCORRECT = "#EB3238"
 CHART_UNATTEMPTED = "#B9BDC6"
 CHART_GRID = "#D8DADF"
 CHART_TEXT = "#5C6068"
 CHART_INK = "#1A1A1C"
+
+# Hatch patterns layered on top of colour for the same three states, so the
+# chart still reads in greyscale or to a colour-blind viewer: correct is a
+# solid fill, incorrect a diagonal hatch, unattempted a sparse dot hatch.
+HATCH_CORRECT = ""
+HATCH_INCORRECT = "//"
+HATCH_UNATTEMPTED = ".."
 
 # --------------------------------------------------------------------------
 # Type

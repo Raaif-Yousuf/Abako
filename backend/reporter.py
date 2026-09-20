@@ -195,12 +195,19 @@ def _make_topic_chart(topic_breakdown, all_topics):
     crowded = len(labels) > 7
     fig, ax = plt.subplots(figsize=(7.3, 2.95 if crowded else 2.55))
     x = list(range(len(labels)))
-    ax.bar(x, correct, color=theme.CHART_CORRECT, label="Correct", width=0.62, zorder=3)
+    # Correct/incorrect/unattempted read apart by more than hue alone - a
+    # solid black fill, a red diagonal hatch and a grey dot hatch - so the
+    # three states still separate in greyscale print or for a colour-blind
+    # reader.
+    ax.bar(x, correct, color=theme.CHART_CORRECT, label="Correct", width=0.62,
+          zorder=3, hatch=theme.HATCH_CORRECT, edgecolor="white", linewidth=0.4)
     ax.bar(x, incorrect, bottom=correct, color=theme.CHART_INCORRECT,
-          label="Incorrect", width=0.62, zorder=3)
+          label="Incorrect", width=0.62, zorder=3, hatch=theme.HATCH_INCORRECT,
+          edgecolor="white", linewidth=0.4)
     bottom2 = [cc + ii for cc, ii in zip(correct, incorrect, strict=True)]
     ax.bar(x, unattempted, bottom=bottom2, color=theme.CHART_UNATTEMPTED,
-          label="Unattempted", width=0.62, zorder=3)
+          label="Unattempted", width=0.62, zorder=3, hatch=theme.HATCH_UNATTEMPTED,
+          edgecolor="white", linewidth=0.4)
 
     ax.set_xticks(x)
     if crowded:
