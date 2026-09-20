@@ -65,3 +65,24 @@ def test_extreme_data():
     assert res2["success"]
     assert len(res2["students"]) == 1000
     os.remove(filename_1000)
+
+
+def test_error_list_is_capped_with_suppressed_count(tmp_path):
+    wb = openpyxl.Workbook()
+    ws_meta = wb.create_sheet("Metadata")
+    for i in range(1, 61):
+        ws_meta.append([i, "Algebra", "A"])
+
+    ws_entry = wb.create_sheet("Entry")
+    ws_entry.append(["Student ID", "Name", "Date of Birth"] + [f"Q{i}" for i in range(1, 61)])
+    # All 60 questions blank for this single student -> 60 "is blank" errors,
+    # comfortably over the cap.
+    ws_entry.append(["S1", "Alice", "2010-01-01"] + [""] * 60)
+
+    filename = str(tmp_path / "too_many_errors.xlsx")
+    wb.save(filename)
+
+    res = validate_and_grade(filename)
+    assert not res["success"]
+    assert len(res["errors"]) == 26  # 25 reported errors + 1 summary line
+    assert "35 more error(s) suppressed" in res["errors"][-1]

@@ -18,6 +18,7 @@ logging.getLogger("werkzeug").handlers = []
 app = Flask(__name__)
 CORS(app)
 
+from backend import config
 from backend.config import OUTPUT_BASE_PATH, QUESTION_BANK_PATH
 from backend.demo_manager import run_demo
 from backend.excel_manager import generate_data_entry_sheet
@@ -77,6 +78,16 @@ def generate():
     shuffle = data.get("shuffle", True)
     selected_chapters = list(chapter_allocations.keys())
 
+    if not chapter_allocations:
+        return jsonify({"success": False, "errors": ["chapter_allocations is empty; select at least one chapter."]}), 400
+
+    alloc_sum = sum(chapter_allocations.values())
+    if alloc_sum != config.TOTAL_QUESTIONS:
+        return jsonify({
+            "success": False,
+            "errors": [f"chapter_allocations values sum to {alloc_sum}, must equal {config.TOTAL_QUESTIONS}."]
+        }), 400
+
     school_info = {
         "School Name": school_name,
         "Campus": campus_name,
@@ -88,17 +99,21 @@ def generate():
     safe_campus = "".join(c if c.isalnum() else "_" for c in campus_name)
     safe_grade = "".join(c if c.isalnum() else "_" for c in grade)
     output_dir = os.path.join(OUTPUT_BASE_PATH, f"{safe_school}_{safe_campus}_{safe_grade}")
-    os.makedirs(output_dir, exist_ok=True)
 
-    questions = generate_from_excel(QUESTION_BANK_PATH, selected_chapters, chapter_allocations=chapter_allocations, shuffle=shuffle)
+    try:
+        os.makedirs(output_dir, exist_ok=True)
 
-    q_pdf = os.path.join(output_dir, "Question_Paper.pdf")
-    a_pdf = os.path.join(output_dir, "Answer_Key.pdf")
-    e_xlsx = os.path.join(output_dir, "Data_Entry_Sheet.xlsx")
+        questions = generate_from_excel(QUESTION_BANK_PATH, selected_chapters, chapter_allocations=chapter_allocations, shuffle=shuffle)
 
-    generate_question_paper(q_pdf, school_info, questions)
-    generate_answer_key(a_pdf, questions, school_name=school_name, campus_name=campus_name, grade=grade, exam_date=exam_date)
-    generate_data_entry_sheet(e_xlsx, questions, school_name=school_name, campus_name=campus_name, grade=grade)
+        q_pdf = os.path.join(output_dir, "Question_Paper.pdf")
+        a_pdf = os.path.join(output_dir, "Answer_Key.pdf")
+        e_xlsx = os.path.join(output_dir, "Data_Entry_Sheet.xlsx")
+
+        generate_question_paper(q_pdf, school_info, questions)
+        generate_answer_key(a_pdf, questions, school_name=school_name, campus_name=campus_name, grade=grade, exam_date=exam_date)
+        generate_data_entry_sheet(e_xlsx, questions, school_name=school_name, campus_name=campus_name, grade=grade)
+    except Exception as e:
+        return jsonify({"success": False, "errors": [str(e)]}), 500
 
     return jsonify({"output_dir": output_dir, "files": [q_pdf, a_pdf, e_xlsx]})
 
@@ -148,11 +163,14 @@ def grade():
     if not os.path.exists(entry_sheet_path):
         return jsonify({"success": False, "errors": ["Entry sheet not found"]}), 400
 
-    result = validate_and_grade(entry_sheet_path)
-    if not result.get("success"):
-        return jsonify(result), 400
+    try:
+        result = validate_and_grade(entry_sheet_path)
+        if not result.get("success"):
+            return jsonify(result), 400
 
-    generate_all_reports(result, school_info, base_dir=output_folder)
+        generate_all_reports(result, school_info, base_dir=output_folder)
+    except Exception as e:
+        return jsonify({"success": False, "errors": [str(e)]}), 500
 
     return jsonify({"output_dir": output_folder})
 

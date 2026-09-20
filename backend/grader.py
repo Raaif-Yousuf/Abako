@@ -1,6 +1,10 @@
+from collections import Counter
+
 import openpyxl
 
 from backend import config
+
+MAX_REPORTED_ERRORS = 25
 
 
 def validate_and_grade(filepath):
@@ -26,16 +30,20 @@ def validate_and_grade(filepath):
             q_num = int(row[0])
         except (ValueError, TypeError):
             continue
-        chapter = str(row[1])
+        raw_chapter = row[1] if len(row) > 1 else None
+        chapter = "Unknown" if raw_chapter is None or str(raw_chapter).strip() == "" else str(raw_chapter)
         topic_mapping[q_num] = chapter
 
     # Read Entry
     errors = []
     students_data = []
+    rows_read = 0
 
     for row_idx, row in enumerate(ws_entry.iter_rows(min_row=2, values_only=True), start=2):
         if not any(row):
-            break
+            # A stray blank row shouldn't truncate the rest of the class list.
+            continue
+        rows_read += 1
 
         student_id, name = row[0], row[1]
         if not student_id:
@@ -63,6 +71,10 @@ def validate_and_grade(filepath):
             })
 
     if errors:
+        if len(errors) > MAX_REPORTED_ERRORS:
+            suppressed = len(errors) - MAX_REPORTED_ERRORS
+            errors = errors[:MAX_REPORTED_ERRORS]
+            errors.append(f"...and {suppressed} more error(s) suppressed.")
         return {"success": False, "errors": errors}
 
     # Grade
@@ -119,14 +131,39 @@ def validate_and_grade(filepath):
     # Rank and Percentile
     graded_students.sort(key=lambda x: x["final_score"], reverse=True)
     n = len(graded_students)
-    for rank, s in enumerate(graded_students, start=1):
-        s["rank"] = rank
-        # Standard percentile formula relative to batch
-        percentile = round(((n - rank) / n) * 100, 1) if n > 1 else 100.0
-        s["percentile"] = percentile
+    counts = Counter(s["final_score"] for s in graded_students)
+
+    # Competition ranking ("1224"): tied students share the better rank and the
+    # next distinct score skips the tied places (e.g. 1, 2, 2, 4).
+    rank_for_score = {}
+    higher_count = 0
+    for score in sorted(counts.keys(), reverse=True):
+        rank_for_score[score] = higher_count + 1
+        higher_count += counts[score]
+
+    # Percentile rank uses the midrank (mean rank) definition standard in
+    # educational measurement: percentile = (below + 0.5 * tied) / n * 100,
+    # where `below` is the number of students scoring strictly lower and
+    # `tied` is the number of students (including this one) on the same
+    # score. Tied students always get the same percentile, and an all-tied
+    # cohort lands at 50.0 rather than being told everyone is at the bottom.
+    if n == 1:
+        percentile_for_score = {graded_students[0]["final_score"]: 100.0}
+    else:
+        percentile_for_score = {}
+        lower_count = 0
+        for score in sorted(counts.keys()):
+            tied = counts[score]
+            percentile_for_score[score] = round((lower_count + 0.5 * tied) / n * 100, 1)
+            lower_count += tied
+
+    for s in graded_students:
+        s["rank"] = rank_for_score[s["final_score"]]
+        s["percentile"] = percentile_for_score[s["final_score"]]
 
     return {
         "success": True,
         "students": graded_students,
-        "tested_topics": list(set(topic_mapping.values()))
+        "tested_topics": list(set(topic_mapping.values())),
+        "rows_read": rows_read
     }
